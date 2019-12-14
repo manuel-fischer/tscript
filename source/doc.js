@@ -367,7 +367,7 @@ function checkCode(code)
 	interpreter.reset();
 	interpreter.service.message = function(msg) { throw msg; }
 	interpreter.service.documentation_mode = true;
-	while (interpreter.status != "finished") interpreter.step_into();
+	while (interpreter.status != "finished") interpreter.step();
 }
 
 // This function returns an altered version of the pseudo-html #content
