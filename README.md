@@ -1,11 +1,20 @@
 # TScript
-This is the reference implementation of the TScript ("teaching-script")
+This is an extended implementation of the TScript ("teaching-script")
 programming language.
 
+It is based on the reference implementation by Tobias Glasmachers.
+For more details click [here](https://github.com/TGlas/tscript) to get to the original repository.
+
+## Additional features
+* `Range.has(key)`
+* `String.toUpperCase()`
+* `String.toLowerCase()`
+
+<!--
 ## Getting Started
 TScript comes as a single html file. It does not require installation.
 Simply open the file in a modern browser and you are ready to go.
-[Click here for a quick test.](https://tglas.github.io/tscript/distribution/index.html)
+[Click here for a quick test.](https://github.com/TGlas/tscript/distribution/index.html)
 For more serious use it is recommended to store the page in your local
 file system &mdash; use "save link as" (or similar) from the context
 menu.
@@ -36,9 +45,11 @@ If something does not work as expected then please run the
 [unit tests](https://tglas.github.io/tscript/source/unittest.html)
 in your browser. If a test should fail then please
 [report a bug](https://github.com/TGlas/tscript/issues).
+-->
 
 ## Author
 TScript is developed by Tobias Glasmachers.
+The Extensions to TScript are developed by Manuel Fischer.
 
 ## License
 This project is licensed under the MIT License - see the
