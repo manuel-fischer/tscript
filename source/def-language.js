@@ -3328,6 +3328,24 @@ if (doc) doc.children.push({
 					# a = ["hello", "A", "", "B", ""]
 				</tscript>
 			</td></tr>
+			<tr><th>toUpperCase</th><td>
+				The <code class="code">function toUpperCase()</code> converts
+				the string to upper case letters. Example:
+				<tscript>
+					var s = "Hello world!";
+					var u = s.toUpperCase();
+					# u = "HELLO WORLD!"
+				</tscript>
+			</td></tr>
+			<tr><th>toLowerCase</th><td>
+				The <code class="code">function toUpperCase()</code> converts
+				the string to lower case letters. Example:
+				<tscript>
+					var s = "Hello world!";
+					var l = s.toLowerCase();
+					# l = "hello world!"
+				</tscript>
+			</td></tr>
 			<tr><th>fromUnicode</th><td>
 				The <code class="code">static function fromUnicode(characters)</code>
 				converts a single integer or an array of integers into a string
@@ -3656,6 +3674,18 @@ if (doc) doc.children.push({
 			<tr><th>end</th><td>
 				<code class="code">function end()</code> returns the end of
 				the range.
+			</td></tr>
+			<tr><th>has</th><td>
+				<code class="code">function has(value)</code> tests whether
+				<i>value</i> is an element of the range.
+				<tscript>
+					var r = 3:10;
+					r.has(0);  # false
+					r.has(3);  # true
+					r.has(9);  # true
+					r.has(10); # false
+					r.has(-7); # false
+				</tscript>
 			</td></tr>
 			</table>
 		`,

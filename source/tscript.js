@@ -868,6 +868,8 @@ let core = {
 				function size() { }
 				function find(searchterm, start = 0, backward = false) { }
 				function split(separator) { }
+				function toUpperCase() { }
+				function toLowerCase() { }
 				static function fromUnicode(characters) { }
 			}
 
@@ -911,6 +913,7 @@ let core = {
 				function size() { }
 				function begin() { }
 				function end() { }
+				function has(value) { }
 			}
 
 			class Type
@@ -1019,6 +1022,12 @@ let core = {
 						let arr = [];
 						for (let i=0; i<a.length; i++) arr.push({"type": this.program.types[module.typeid_string], "value": {"b": a[i]}});
 						return {"type": this.program.types[module.typeid_array], "value": {"b": arr}};
+					},
+					"toUpperCase": function(object) {
+						return {"type": this.program.types[module.typeid_string], "value": {"b": object.value.b.toUpperCase()}};
+					},
+					"toLowerCase": function(object) {
+						return {"type": this.program.types[module.typeid_string], "value": {"b": object.value.b.toLowerCase()}};
 					},
 					"fromUnicode": function(characters) {
 						let s = "";
@@ -1351,6 +1360,15 @@ let core = {
 				"end": function(object) {
 					return {"type": this.program.types[module.typeid_integer], "value": {"b": object.value.b.end}};
 				},
+				"has": function(object, value) {
+					if (module.isDerivedFrom(value.type, module.typeid_integer)) { }
+					else if (module.isDerivedFrom(value.type, module.typeid_real) && module.isInt32(value.value.b)) { }
+					else this.error("/argument-mismatch/am-1", ["value", "Range.has", "integer", module.displayname(value.type)]);
+					
+					let v = value.value.b;
+					let ret = object.value.b.begin <= v && v < object.value.b.end;
+					return {"type": this.program.types[module.typeid_boolean], "value": {"b": ret}};
+				}, 
 			},
 			"Type": {
 				"constructor": function(object, value) {
