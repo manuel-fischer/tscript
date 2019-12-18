@@ -22,12 +22,12 @@ JSFILES := ../source/codemirror.js \
 	../source/def-language.js \
 	../source/def-stdlib.js \
 	../source/def-errors.js \
-	../source/def-legal.js \
+	../source/def-legal.js
 
 CSSFILES := ../source/codemirror.css \
 	../source/tgui.css \
 	../source/ide.css \
-	../source/documentation.css \
+	../source/documentation.css
 
 singlefile:
 	rm -f index.html
