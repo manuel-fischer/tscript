@@ -9,6 +9,7 @@ For more details click [here](https://github.com/TGlas/tscript) to get to the or
 * `Range.has(key)`
 * `String.toUpperCase()`
 * `String.toLowerCase()`
+* Binary (prefix `0b`), octal (prefix `0o`) and hexadecimal (prefix `0x`) integer literals
 
 <!--
 ## Getting Started

@@ -124,10 +124,21 @@ if (doc) doc.children.push({
 
 			<h2>Integers</h2>
 			<p>
-			An integer is simply defined as a non-empty sequence of
-			digits:
+			An integer can be denoted in four different ways:
+			Binary, octal, decimal and hexadecimal.
+			It is defined as follows:
 			<ebnf>
-				integer = digit { digit } ;
+				integer = bin_integer | oct_integer | dec_integer | hex_integer ;
+						
+				bin_integer = "0" ("b" | "B") bin { bin } ;
+				oct_integer = "0" ("o" | "O") oct { oct } ;
+				dec_integer = digit { digit } ;
+				hex_integer = "0" ("x" | "X") hex { hex } ;
+				
+				bin = "0" | "1" ;
+				oct = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" ;
+				hex = digit | "a" | "b" | "c" | "d" | "e" | "f"
+							| "A" | "B" | "C" | "D" | "E" | "F" ;
 			</ebnf>
 			Too large tokens exceeding the
 			<a href="#/language/types/integer">integer</a> range result
@@ -139,9 +150,9 @@ if (doc) doc.children.push({
 			<p>
 			A real must contain a fractional part, or an exponent, or both:
 			<ebnf>
-				real = integer "." integer
-					 | integer ("e" | "E") [ "+" | "-" ] integer
-				     | integer "." integer ("e" | "E") [ "+" | "-" ] integer ;
+				real = dec_integer "." dec_integer
+					 | dec_integer ("e" | "E") [ "+" | "-" ] dec_integer
+				     | dec_integer "." dec_integer ("e" | "E") [ "+" | "-" ] dec_integer ;
 			</ebnf>
 			</p>
 
@@ -351,10 +362,21 @@ if (doc) doc.children.push({
 			        | "static" | "super" | "then" | "this" | "throw"
 			        | "true" | "try" | "use" | "var" | "while" | "xor" ;
 
-			integer = digit { digit } ;
-			real = integer "." integer
-				 | integer ("e" | "E") [ "+" | "-" ] integer
-			     | integer "." integer ("e" | "E") [ "+" | "-" ] integer ;
+			integer = bin_integer | oct_integer | dec_integer | hex_integer ;
+					
+			bin_integer = "0" ("b" | "B") bin { bin } ;
+			oct_integer = "0" ("o" | "O") oct { oct } ;
+			dec_integer = digit { digit } ;
+			hex_integer = "0" ("x" | "X") hex { hex } ;
+			
+			bin = "0" | "1" ;
+			oct = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" ;
+			hex = digit | "a" | "b" | "c" | "d" | "e" | "f"
+			            | "A" | "B" | "C" | "D" | "E" | "F" ;
+						  
+			real = dec_integer "." dec_integer
+				 | dec_integer ("e" | "E") [ "+" | "-" ] dec_integer
+			     | dec_integer "." dec_integer ("e" | "E") [ "+" | "-" ] dec_integer ;
 			string = '"' { (unicode-char - "\\" - line-feed) | escape } '"' ;
 			escape = "\\" "\\"
 			       | "\\" '"'
@@ -365,8 +387,6 @@ if (doc) doc.children.push({
 			       | "\\" "b"
 			       | "\\" "/"
 			       | "\\" "u" hex hex hex hex ;
-			hex = digit | "A" | "B" | "C" | "D" | "E" | "F"
-			            | "a" | "b" | "c" | "d" | "e" | "f" ;
 
 			operator = arithmetic_op | compare_op | assign-op ;
 			binary-op = "+" | "-" | "*" | "/" | "%" | "^" ;
@@ -1152,6 +1172,11 @@ if (doc) doc.children.push({
 				An Integer literal represents a constant of type
 				<a href="#/language/types/integer">Integer</a>. It is denoted by
 				an integer <a href="#/language/syntax/tokens">token</a>.
+				There are four ways to denote a number,
+				binary (prefix <code class="code">0b</code>),
+				octal (prefix <code class="code">0o</code>),
+				decimal (no prefix) and
+				hexadecimal (prefix <code class="code">0x</code>).
 				The value must lie in the integer range, i.e., it must not exceed
 				2<sup>31</sup> - 1 = 2147483647.
 				</p>
@@ -1163,6 +1188,9 @@ if (doc) doc.children.push({
 						var c = -99;             # negated literal 99
 						# var d = -2147483648;   # error, range exceeded
 						var e = -2147483647-1;
+						var f = 0xff;            # 255 in Hexadecimal
+						var g = 0o77;            # 63 in Octal
+						var h = 0b101010;        # 42 in Binary
 					</tscript>
 				</div>
 			`,

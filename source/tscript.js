@@ -2210,31 +2210,64 @@ module.get_token = function (state, peek)
 	{
 		// parse a number, integer or float
 		let start = state.pos;
-		let digits = "0123456789";
+		let binDigits = "01";
+		let octDigits = "01234567";
+		let decDigits = "0123456789";
+		let hexDigits = "0123456789abcdef";
+		let digits = decDigits;
+		let base = 10;
 		let type = "integer";
-		while (! state.eof() && digits.indexOf(state.current()) >= 0) state.advance();
+		
+		if (! state.eof() && state.current() == '0')
+		{
+			state.advance();
+			var cur = state.current().toLowerCase();
+			if (cur == 'x') {      base = 16; digits = hexDigits; state.advance(); }
+			else if (cur == 'o') { base =  8; digits = octDigits; state.advance(); }
+			else if (cur == 'b') { base =  2; digits = binDigits; state.advance(); }
+			//else base = 10;
+		}
+		//else base = 10;
+		
+		while (! state.eof() && digits.indexOf(state.current().toLowerCase()) >= 0) state.advance();
 		if (! state.eof())
 		{
-			if (state.current() == '.')
+			var cur = state.current().toLowerCase();
+			if (cur == '.')
 			{
 				// parse fractional part
 				type = "real";
+				if(base != 10) state.error("/syntax/se-1");
 				state.advance();
 				if (state.eof() || (state.current() < '0' || state.current() > '9')) state.error("/syntax/se-1");
 				while (! state.eof() && (state.current() >= '0' && state.current() <= '9')) state.advance();
 			}
-			if (state.current() == 'e' || state.current() == 'E')
+			else if (cur == 'e')
 			{
 				// parse exponent
 				type = "real";
+				if(base != 10) state.error("/syntax/se-1");
 				state.advance();
 				if (state.current() == '+' || state.current() == '-') state.advance();
 				if (state.current() < '0' || state.current() > '9') state.error("/syntax/se-1");
 				while (! state.eof() && (state.current() >= '0' && state.current() <= '9')) state.advance();
 			}
 		}
+		
 		let value = state.source.substring(start, state.pos);
-		let n = parseFloat(value);
+		let n;
+		if (type == "integer")
+		{
+			if(base != 10)
+				n = parseInt(value.substring(2), base);
+			else
+				n = parseInt(value);
+		}
+		else
+		{
+			n = parseFloat(value);
+		}
+		
 		if (where) state.set(where); else state.skip();
 		tok = {"type": type, "value": n, "code": value, "line": line};
 	}
@@ -3391,7 +3424,8 @@ function parse_expression(state, parent, lhs)
 		else if (token.type == "integer")
 		{
 			// constant
-			let v = parseFloat(token.value);
+			console.assert(typeof(token.value) == "number");
+			let v = token.value; // no parsing required, because token.value is already a number
 			if (v > 2147483647) state.error("/syntax/se-23");
 			v = v | 0;
 			ex.petype = "constant";
@@ -3402,7 +3436,8 @@ function parse_expression(state, parent, lhs)
 		else if (token.type == "real")
 		{
 			// constant
-			let v = parseFloat(token.value);
+			console.assert(typeof(token.value) == "number");
+			let v = token.value; // no parsing required, because token.value is already a number
 			ex.petype = "constant";
 			ex.typedvalue = {"type": get_program(parent).types[module.typeid_real], "value": {"b": v}};
 			ex.step = constantstep;

@@ -1243,6 +1243,8 @@ let core = {
 				function size() { }
 				function find(searchterm, start = 0, backward = false) { }
 				function split(separator) { }
+				function toUpperCase() { }
+				function toLowerCase() { }
 				static function fromUnicode(characters) { }
 			}
 
@@ -1286,6 +1288,7 @@ let core = {
 				function size() { }
 				function begin() { }
 				function end() { }
+				function has(value) { }
 			}
 
 			class Type
@@ -1394,6 +1397,12 @@ let core = {
 						let arr = [];
 						for (let i=0; i<a.length; i++) arr.push({"type": this.program.types[module.typeid_string], "value": {"b": a[i]}});
 						return {"type": this.program.types[module.typeid_array], "value": {"b": arr}};
+					},
+					"toUpperCase": function(object) {
+						return {"type": this.program.types[module.typeid_string], "value": {"b": object.value.b.toUpperCase()}};
+					},
+					"toLowerCase": function(object) {
+						return {"type": this.program.types[module.typeid_string], "value": {"b": object.value.b.toLowerCase()}};
 					},
 					"fromUnicode": function(characters) {
 						let s = "";
@@ -1726,6 +1735,15 @@ let core = {
 				"end": function(object) {
 					return {"type": this.program.types[module.typeid_integer], "value": {"b": object.value.b.end}};
 				},
+				"has": function(object, value) {
+					if (module.isDerivedFrom(value.type, module.typeid_integer)) { }
+					else if (module.isDerivedFrom(value.type, module.typeid_real) && module.isInt32(value.value.b)) { }
+					else this.error("/argument-mismatch/am-1", ["value", "Range.has", "integer", module.displayname(value.type)]);
+					
+					let v = value.value.b;
+					let ret = object.value.b.begin <= v && v < object.value.b.end;
+					return {"type": this.program.types[module.typeid_boolean], "value": {"b": ret}};
+				}, 
 			},
 			"Type": {
 				"constructor": function(object, value) {
@@ -2567,31 +2585,64 @@ module.get_token = function (state, peek)
 	{
 		// parse a number, integer or float
 		let start = state.pos;
-		let digits = "0123456789";
+		let binDigits = "01";
+		let octDigits = "01234567";
+		let decDigits = "0123456789";
+		let hexDigits = "0123456789abcdef";
+		let digits = decDigits;
+		let base = 10;
 		let type = "integer";
-		while (! state.eof() && digits.indexOf(state.current()) >= 0) state.advance();
+		
+		if (! state.eof() && state.current() == '0')
+		{
+			state.advance();
+			var cur = state.current().toLowerCase();
+			if (cur == 'x') {      base = 16; digits = hexDigits; state.advance(); }
+			else if (cur == 'o') { base =  8; digits = octDigits; state.advance(); }
+			else if (cur == 'b') { base =  2; digits = binDigits; state.advance(); }
+			//else base = 10;
+		}
+		//else base = 10;
+		
+		while (! state.eof() && digits.indexOf(state.current().toLowerCase()) >= 0) state.advance();
 		if (! state.eof())
 		{
-			if (state.current() == '.')
+			var cur = state.current().toLowerCase();
+			if (cur == '.')
 			{
 				// parse fractional part
 				type = "real";
+				if(base != 10) state.error("/syntax/se-1");
 				state.advance();
 				if (state.eof() || (state.current() < '0' || state.current() > '9')) state.error("/syntax/se-1");
 				while (! state.eof() && (state.current() >= '0' && state.current() <= '9')) state.advance();
 			}
-			if (state.current() == 'e' || state.current() == 'E')
+			else if (cur == 'e')
 			{
 				// parse exponent
 				type = "real";
+				if(base != 10) state.error("/syntax/se-1");
 				state.advance();
 				if (state.current() == '+' || state.current() == '-') state.advance();
 				if (state.current() < '0' || state.current() > '9') state.error("/syntax/se-1");
 				while (! state.eof() && (state.current() >= '0' && state.current() <= '9')) state.advance();
 			}
 		}
+		
 		let value = state.source.substring(start, state.pos);
-		let n = parseFloat(value);
+		let n;
+		if (type == "integer")
+		{
+			if(base != 10)
+				n = parseInt(value.substring(2), base);
+			else
+				n = parseInt(value);
+		}
+		else
+		{
+			n = parseFloat(value);
+		}
+		
 		if (where) state.set(where); else state.skip();
 		tok = {"type": type, "value": n, "code": value, "line": line};
 	}
@@ -3748,7 +3799,8 @@ function parse_expression(state, parent, lhs)
 		else if (token.type == "integer")
 		{
 			// constant
-			let v = parseFloat(token.value);
+			console.assert(typeof(token.value) == "number");
+			let v = token.value; // no parsing required, because token.value is already a number
 			if (v > 2147483647) state.error("/syntax/se-23");
 			v = v | 0;
 			ex.petype = "constant";
@@ -3759,7 +3811,8 @@ function parse_expression(state, parent, lhs)
 		else if (token.type == "real")
 		{
 			// constant
-			let v = parseFloat(token.value);
+			console.assert(typeof(token.value) == "number");
+			let v = token.value; // no parsing required, because token.value is already a number
 			ex.petype = "constant";
 			ex.typedvalue = {"type": get_program(parent).types[module.typeid_real], "value": {"b": v}};
 			ex.step = constantstep;
@@ -12434,10 +12487,21 @@ if (doc) doc.children.push({
 
 			<h2>Integers</h2>
 			<p>
-			An integer is simply defined as a non-empty sequence of
-			digits:
+			An integer can be denoted in four different ways:
+			Binary, octal, decimal and hexadecimal.
+			It is defined as follows:
 			<ebnf>
-				integer = digit { digit } ;
+				integer = bin_integer | oct_integer | dec_integer | hex_integer ;
+						
+				bin_integer = "0" ("b" | "B") bin { bin } ;
+				oct_integer = "0" ("o" | "O") oct { oct } ;
+				dec_integer = digit { digit } ;
+				hex_integer = "0" ("x" | "X") hex { hex } ;
+				
+				bin = "0" | "1" ;
+				oct = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" ;
+				hex = digit | "a" | "b" | "c" | "d" | "e" | "f"
+							| "A" | "B" | "C" | "D" | "E" | "F" ;
 			</ebnf>
 			Too large tokens exceeding the
 			<a href="#/language/types/integer">integer</a> range result
@@ -12449,9 +12513,9 @@ if (doc) doc.children.push({
 			<p>
 			A real must contain a fractional part, or an exponent, or both:
 			<ebnf>
-				real = integer "." integer
-					 | integer ("e" | "E") [ "+" | "-" ] integer
-				     | integer "." integer ("e" | "E") [ "+" | "-" ] integer ;
+				real = dec_integer "." dec_integer
+					 | dec_integer ("e" | "E") [ "+" | "-" ] dec_integer
+				     | dec_integer "." dec_integer ("e" | "E") [ "+" | "-" ] dec_integer ;
 			</ebnf>
 			</p>
 
@@ -12661,10 +12725,21 @@ if (doc) doc.children.push({
 			        | "static" | "super" | "then" | "this" | "throw"
 			        | "true" | "try" | "use" | "var" | "while" | "xor" ;
 
-			integer = digit { digit } ;
-			real = integer "." integer
-				 | integer ("e" | "E") [ "+" | "-" ] integer
-			     | integer "." integer ("e" | "E") [ "+" | "-" ] integer ;
+			integer = bin_integer | oct_integer | dec_integer | hex_integer ;
+					
+			bin_integer = "0" ("b" | "B") bin { bin } ;
+			oct_integer = "0" ("o" | "O") oct { oct } ;
+			dec_integer = digit { digit } ;
+			hex_integer = "0" ("x" | "X") hex { hex } ;
+			
+			bin = "0" | "1" ;
+			oct = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" ;
+			hex = digit | "a" | "b" | "c" | "d" | "e" | "f"
+			            | "A" | "B" | "C" | "D" | "E" | "F" ;
+						  
+			real = dec_integer "." dec_integer
+				 | dec_integer ("e" | "E") [ "+" | "-" ] dec_integer
+			     | dec_integer "." dec_integer ("e" | "E") [ "+" | "-" ] dec_integer ;
 			string = '"' { (unicode-char - "\\" - line-feed) | escape } '"' ;
 			escape = "\\" "\\"
 			       | "\\" '"'
@@ -12675,8 +12750,6 @@ if (doc) doc.children.push({
 			       | "\\" "b"
 			       | "\\" "/"
 			       | "\\" "u" hex hex hex hex ;
-			hex = digit | "A" | "B" | "C" | "D" | "E" | "F"
-			            | "a" | "b" | "c" | "d" | "e" | "f" ;
 
 			operator = arithmetic_op | compare_op | assign-op ;
 			binary-op = "+" | "-" | "*" | "/" | "%" | "^" ;
@@ -13462,6 +13535,11 @@ if (doc) doc.children.push({
 				An Integer literal represents a constant of type
 				<a href="#/language/types/integer">Integer</a>. It is denoted by
 				an integer <a href="#/language/syntax/tokens">token</a>.
+				There are four ways to denote a number,
+				binary (prefix <code class="code">0b</code>),
+				octal (prefix <code class="code">0o</code>),
+				decimal (no prefix) and
+				hexadecimal (prefix <code class="code">0x</code>).
 				The value must lie in the integer range, i.e., it must not exceed
 				2<sup>31</sup> - 1 = 2147483647.
 				</p>
@@ -13473,6 +13551,9 @@ if (doc) doc.children.push({
 						var c = -99;             # negated literal 99
 						# var d = -2147483648;   # error, range exceeded
 						var e = -2147483647-1;
+						var f = 0xff;            # 255 in Hexadecimal
+						var g = 0o77;            # 63 in Octal
+						var h = 0b101010;        # 42 in Binary
 					</tscript>
 				</div>
 			`,
@@ -15638,6 +15719,24 @@ if (doc) doc.children.push({
 					# a = ["hello", "A", "", "B", ""]
 				</tscript>
 			</td></tr>
+			<tr><th>toUpperCase</th><td>
+				The <code class="code">function toUpperCase()</code> converts
+				the string to upper case letters. Example:
+				<tscript>
+					var s = "Hello world!";
+					var u = s.toUpperCase();
+					# u = "HELLO WORLD!"
+				</tscript>
+			</td></tr>
+			<tr><th>toLowerCase</th><td>
+				The <code class="code">function toUpperCase()</code> converts
+				the string to lower case letters. Example:
+				<tscript>
+					var s = "Hello world!";
+					var l = s.toLowerCase();
+					# l = "hello world!"
+				</tscript>
+			</td></tr>
 			<tr><th>fromUnicode</th><td>
 				The <code class="code">static function fromUnicode(characters)</code>
 				converts a single integer or an array of integers into a string
@@ -15966,6 +16065,18 @@ if (doc) doc.children.push({
 			<tr><th>end</th><td>
 				<code class="code">function end()</code> returns the end of
 				the range.
+			</td></tr>
+			<tr><th>has</th><td>
+				<code class="code">function has(value)</code> tests whether
+				<i>value</i> is an element of the range.
+				<tscript>
+					var r = 3:10;
+					r.has(0);  # false
+					r.has(3);  # true
+					r.has(9);  # true
+					r.has(10); # false
+					r.has(-7); # false
+				</tscript>
 			</td></tr>
 			</table>
 		`,
