@@ -77,6 +77,7 @@ module.ex2string = function(ex)
 }
 
 // exception type
+/** @constructor */
 function AssertionError(msg) { this.message = msg; }
 AssertionError.prototype = new Error();
 
@@ -1465,7 +1466,7 @@ let core = {
 				else return {"type": this.program.types[module.typeid_string], "value": {"b": ""}};
 			},
 			"wait": function(milliseconds) {
-				if (! module.isNumeric(milliseconds.type)) this.error("/argument-mismatch/am-1", ["milliseconds", "wait", "numeric argument", module.displayname(arg.type)]);
+				if (! module.isNumeric(milliseconds.type)) this.error("/argument-mismatch/am-1", ["milliseconds", "wait", "numeric argument", module.displayname(milliseconds.type)]);
 				if (! this.service.documentation_mode) this.wait(milliseconds.value.b);
 				return {"type": this.program.types[module.typeid_null], "value": {"b": null}};
 			},
@@ -2261,7 +2262,7 @@ module.get_token = function (state, peek)
 			if(base != 10)
 				n = parseInt(value.substring(2), base);
 			else
-				n = parseInt(value);
+				n = parseInt(value, 10);
 		}
 		else
 		{
@@ -6328,6 +6329,7 @@ function parse_statement_or_declaration(state, parent)
 // coding style warnings in the errors return value.
 module.parse = function(sourcecode)
 {
+	/** @constructor */
 	function ParseError(msg) { this.message = msg; }
 	ParseError.prototype = new Error();
 
@@ -6810,6 +6812,7 @@ module.Interpreter = function(program)
 	};
 
 	// exception type
+	/** @constructor */
 	function RuntimeError(msg, line, ch, href)
 	{
 		if (line === undefined) line = null;

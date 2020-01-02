@@ -1505,7 +1505,7 @@ function fileDlg(title, filename, allowNewFilename, onOkay)
 					{
 						if (confirm("Delete file \"" + fn + "\"\nAre you sure?"))
 						{
-							delete localStorage.removeItem("tscript.code." + fn);
+							localStorage.removeItem("tscript.code." + fn);
 							files.splice(index, 1);
 							list.remove(index);
 						}
