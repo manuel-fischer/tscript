@@ -1592,6 +1592,7 @@ let core = {
 									let t = this.eventqueue[0].type;
 									let e = this.eventqueue[0].event;
 									this.eventqueue.splice(0, 1);
+									if (this.eventCount.hasOwnProperty(t)) this.eventCount[t]--;
 									if (this.eventhandler.hasOwnProperty(t))
 									{
 										let handler = this.eventhandler[t];
@@ -6564,6 +6565,13 @@ module.Interpreter = function(program)
 	this.stepcounter = 0;     // number of program steps already executed
 	this.waittime = 0;        // time to wait before execution can continue
 	this.eventqueue = [];     // queue of events, with entries of the form {type, event}.
+	this.timerEventLimit = 1; // limit of simultaneously enqueued timer events.
+	                          // when an event takes more than 20 ms, multiple
+							  // "timer" events get enqueued; without a limit,
+							  // it can overfill the queue; other events get
+							  // processed after the "timer" events got
+							  // processed, which reduces the latency
+	this.eventCount = {};     // count of each limited event in the current queue
 	this.eventhandler = {};   // event handler by event type
 	this.service = { };       // external services, mostly for communication with the IDE
 	this.eventnames = { };    // registry of event types
@@ -6868,7 +6876,7 @@ module.Interpreter = function(program)
 					}
 				}
 			}
-			if (this.background) this.enqueueEvent("timer", {"type": this.program.types[module.typeid_null], "value": {"b": null}});
+			if (this.background) this.enqueueEventLim("timer", {"type": this.program.types[module.typeid_null], "value": {"b": null}}, this.timerEventLimit);
 		}
 
 		let context = this;
@@ -7133,6 +7141,20 @@ module.Interpreter = function(program)
 	this.enqueueEvent = function(type, event)
 	{
 		if (this.eventmode) this.eventqueue.push({"type": type, "event": event});
+	};
+	
+	this.enqueueEventLim = function(type, event, max_count)
+	{
+		if (this.eventmode)
+		{
+			if (this.eventCount.hasOwnProperty(type))
+			{
+				if (this.eventCount[type] >= max_count) return;
+				this.eventCount[type]++;
+			}
+			else this.eventCount[type] = 1;
+			this.eventqueue.push({ "type": type, "event": event });
+		}
 	};
 
 	// define an event handler - there can only be one :)
