@@ -1033,6 +1033,8 @@ let errors = {
 		"se-50": "syntax error in variable declaration; identifier expected as the variable name",
 		"se-51": "syntax error in variable declaration; expected initializer '=', comma ',' or semicolon ';'",
 		"se-51b": "syntax error in variable declaration; expected comma ',' or semicolon ';'",
+		"se-51c-": "syntax error in variable binding declaration; expected comma ',' or closing bracket ']'",
+		"se-51d-": "syntax error in variable binding declaration; initializer required",
 		"se-52": "syntax error in function declaration; identifier expected as the function name",
 		"se-53": "syntax error in constructor declaration; 'super' expected after colon ':'",
 		"se-54": "syntax error in class declaration; identifier expected as the class name",
@@ -1052,7 +1054,7 @@ let errors = {
 		"se-67": "syntax error in use directive; identifier expected after 'as'",
 		"se-68": "syntax error in use directive; comma ',' or semicolon ';' expected",
 		"se-69": "syntax error in conditional statement: 'then' expected",
-		"se-70": "syntax error in for-loop: identifier expected as the loop variable",
+		"se-70": "syntax error in for-loop: identifier expected as the loop variable", // FIXME currently unused, instead currently error descriptions for normal variable declarations used here
 		"se-71": "syntax error in for-loop: keyword 'in' expected",
 		"se-72": "syntax error in for-loop: keyword 'do' expected",
 		"se-73": "syntax error in for-loop; 'in' or 'do' expected",
@@ -1122,6 +1124,7 @@ let errors = {
 		"am-41": "argument handler passed to setEventHandler must be a function with exactly one parameter",
 		"am-42": "deepcopy failed due to $$",
 		"am-43": "infinite recursion due to recursive data structure",
+		"am-44-": "initializer of binding expected to be array with size $$",
 	},
 	"name": {
 		"ne-1": "error in function call; named parameter '$$' is already specified in call to function '$$'",
@@ -1967,6 +1970,7 @@ let core = {
 									let t = this.eventqueue[0].type;
 									let e = this.eventqueue[0].event;
 									this.eventqueue.splice(0, 1);
+									if (this.eventCount.hasOwnProperty(t)) this.eventCount[t]--;
 									if (this.eventhandler.hasOwnProperty(t))
 									{
 										let handler = this.eventhandler[t];
@@ -2597,7 +2601,7 @@ module.get_token = function (state, peek)
 		if (! state.eof() && state.current() == '0')
 		{
 			state.advance();
-			var cur = state.current().toLowerCase();
+			let cur = state.current().toLowerCase();
 			if (cur == 'x') {      base = 16; digits = hexDigits; state.advance(); }
 			else if (cur == 'o') { base =  8; digits = octDigits; state.advance(); }
 			else if (cur == 'b') { base =  2; digits = binDigits; state.advance(); }
@@ -2608,7 +2612,7 @@ module.get_token = function (state, peek)
 		while (! state.eof() && digits.indexOf(state.current().toLowerCase()) >= 0) state.advance();
 		if (! state.eof())
 		{
-			var cur = state.current().toLowerCase();
+			let cur = state.current().toLowerCase();
 			if (cur == '.')
 			{
 				// parse fractional part
@@ -4969,6 +4973,105 @@ function parse_assignment_or_expression(state, parent)
 	}
 }
 
+
+// EXTENSION
+// returns variable or variable-binding program element
+// it holds the function initassign(pe, frame, value)
+// which should be called with the interpreter as this argument
+// it does not contain a step and a sim function, which can be
+// added by another function
+//
+// param container: the current container to add the variables to
+// param parent:  is set var forloop in parse_for
+// param local:   boolean if scope is local and not conflicting with
+//                parent declarations, set to true by forloop
+//
+// it parses and registers variables recursively
+//
+function parse_decl_identifier(state, parent, container, local)
+{
+	let scope = local ? "local" : get_container_scope(container);
+	
+	let nextid = (container.petype == "type") ? container.objectsize : container.variables.length;
+	
+	function checkIdentifier(identifier)
+	{
+		if (!local && parent.names.hasOwnProperty(identifier)) state.error("/name/ne-14", [identifier]);
+
+		// check variable name
+		if (module.options.checkstyle && ! state.builtin() && identifier[0] >= 'A' && identifier[0] <= 'Z')
+		{
+			state.error("/style/ste-3", ["variable", identifier]);
+		}
+	}
+	
+	function recursive()
+	{
+		let where = state.get();
+		let token = module.get_token(state);
+	
+		if (token.type == "identifier")
+		{
+			checkIdentifier(token.value);
+			
+			let pe = {
+				"petype": "variable", "where": where, "parent": parent,
+				"name": token.value, "id": nextid, "scope": scope,
+				"initassign": function(pe, frame, value)
+				{
+					frame.variables[pe.id] = value;
+				}
+			};
+			
+			container.variables.push(pe);
+			parent.names[token.value] = pe;
+			if (container.petype == "type") parent.objectsize++;
+			
+			nextid += 1;
+			
+			return pe;
+		}
+		else if (token.value == '[')
+		{
+			let pe = {
+				"petype": "variable-binding", "where": where, "parent": parent,
+				"vars": [], "scope": scope,
+				"initassign": function(pe, frame, array)
+				{
+					let bindingCount = pe.vars.length;
+					if (array.type != this.program.types[module.typeid_array] || array.value.b.length != bindingCount)
+					{
+						this.error("/argument-mismatch/am-44-", [bindingCount]);
+					}
+					for(let i = 0; i < bindingCount; i++)
+					{
+						pe.vars[i].initassign.call(this, pe.vars[i], frame, array.value.b[i]);
+					}
+				}
+			};
+			
+			// parse elements
+			do
+			{
+				let pe_child = recursive();
+				
+				pe.vars.push(pe_child);
+				
+				token = module.get_token(state);
+			}
+			while(token.value == ',');
+
+			if (token.value != ']') state.error("/syntax/se-51c-"); // extension errors marked with additional -
+				
+			return pe;
+		}
+		else state.error("/syntax/se-50");
+	}
+	
+	return recursive();
+}
+
+
 // Parse a "var" statement. Even for multiple variables it is treated as
 // a single statement. The variables are placed into the container,
 // which defaults to the enclosing function or global scope.
@@ -5008,72 +5111,57 @@ function parse_var(state, parent, container)
 	// parse individual variables
 	while (true)
 	{
-		// obtain variable name
-		let where = state.get();
-		token = module.get_token(state);
-		if (token.type != "identifier") state.error("/syntax/se-50");
-		if (parent.names.hasOwnProperty(token.value)) state.error("/name/ne-14", [token.value]);
-
-		// check variable name
-		if (module.options.checkstyle && ! state.builtin() && token.value[0] >= 'A' && token.value[0] <= 'Z')
+		// obtain variable name(s)
+		let pe = parse_decl_identifier(state, parent, container, false);
+		
+		// add functionality to variable/root of structured binding
+		// the other nodes of the variable binding tree do
+		// not have a step nor sim function
+		pe.step = function()
 		{
-			state.error("/style/ste-3", ["variable", token.value]);
-		}
+			let frame = this.stack[this.stack.length - 1];
+			let pe = frame.pe[frame.pe.length - 1];
+			let ip = frame.ip[frame.ip.length - 1];
+			if (ip == 0)
+			{
+				// push the value onto the stack
+				if (pe.hasOwnProperty("initializer"))
+				{
+					frame.pe.push(pe.initializer);
+					frame.ip.push(-1);
+					return false;
+				}
+				else
+				{
+					frame.temporaries.push({"type": this.program.types[module.typeid_null], "value": {"b": null}});
+					return true;
+				}
+			}
+			else if (ip == 1)
+			{
+				// assign the value to the variable(s) in the current frame
+				pe.initassign.call(this, pe, frame, frame.temporaries.pop());	
+				return false;
+			}
+			else
+			{
+				frame.pe.pop();
+				frame.ip.pop();
+				return false;
+			}
+		};
 
-		// create the variable
-		let id = (container.petype == "type") ? container.objectsize : container.variables.length;
-		let pe = { "petype": "variable", "where": where, "parent": parent, "name": token.value, "id": id,
-				"step": function()
-						{
-							let frame = this.stack[this.stack.length - 1];
-							let pe = frame.pe[frame.pe.length - 1];
-							let ip = frame.ip[frame.ip.length - 1];
-							if (ip == 0)
-							{
-								// push the value onto the stack
-								if (pe.hasOwnProperty("initializer"))
-								{
-									frame.pe.push(pe.initializer);
-									frame.ip.push(-1);
-									return false;
-								}
-								else
-								{
-									frame.temporaries.push({"type": this.program.types[module.typeid_null], "value": {"b": null}});
-									return true;
-								}
-							}
-							else if (ip == 1)
-							{
-								// assign the value to the variable
-								frame.variables[pe.id] = frame.temporaries.pop();
-								return false;
-							}
-							else
-							{
-								frame.pe.pop();
-								frame.ip.pop();
-								return false;
-							}
-						},
-				"sim": function()
-						{
-							let frame = this.stack[this.stack.length - 1];
-							let ip = frame.ip[frame.ip.length - 1];
-							if (ip == 0)
-							{
-								let pe = frame.pe[frame.pe.length - 1];
-								return (! pe.hasOwnProperty("initializer"));
-							}
-							else return false;
-						},
-			};
-
-		// remember the scope to which the variable's id refers
-		if (container.petype == "global scope") pe.scope = "global";
-		else if (container.petype == "function" || container.petype == "method") pe.scope = "local";
-		else if (container.petype == "type") pe.scope = "object";
-		else module.assert(false, "unknown variable scope");
+		pe.sim = function()
+		{
+			let frame = this.stack[this.stack.length - 1];
+			let ip = frame.ip[frame.ip.length - 1];
+			if (ip == 0)
+			{
+				let pe = frame.pe[frame.pe.length - 1];
+				return (! pe.hasOwnProperty("initializer"));
+			}
+			else return false;
+		};
 
 		// parse the initializer
 		token = module.get_token(state);
@@ -5082,12 +5170,13 @@ function parse_var(state, parent, container)
 			pe.initializer = parse_expression(state, parent);
 			token = module.get_token(state);
 		}
-
-		// register the variable
-		container.variables.push(pe);
-		parent.names[pe.name] = pe;
+		else if (pe.petype == "variable-binding")
+		{
+			state.error("/syntax/se-51d-");
+		}
+		
+		// add instruction
 		ret.vars.push(pe);
-		if (container.petype == "type") parent.objectsize++;
 
 		// parse the delimiter
 		if (token.type == "delimiter" && token.value == ';') break;
@@ -5899,13 +5988,20 @@ function parse_for(state, parent)
 							}
 							else if (pe.hasOwnProperty("var_id"))
 							{
+								console.log("container", container);
 								let typedvalue = container.hasOwnProperty("rangemarker")
 										? {"type": this.program.types[module.typeid_integer], "value": {"b": (container.begin + index) | 0}}
 										: container[index];
 								if (pe.var_scope == "global")
 									this.stack[0].variables[pe.var_id] = typedvalue;
 								else if (pe.var_scope == "local")
-									frame.variables[pe.var_id] = typedvalue;
+								{
+									console.log("typedvalue", typedvalue);
+									if(pe.hasOwnProperty("variable")) // EXTENSION
+										pe.variable.initassign.call(this, pe.variable, frame, typedvalue);
+									else
+										frame.variables[pe.var_id] = typedvalue;
+								}
 								else if (pe.var_scope == "object")
 									frame.object.value.a[pe.var_id] = typedvalue;
 								else module.assert(false, "unknown scope: " + pe.var_scope);
@@ -5941,19 +6037,22 @@ function parse_for(state, parent)
 	token = module.get_token(state, true);
 	if (token.type == "keyword" && token.value == "var")
 	{
+		// EXTENSION structured bindings
+		// TODO state.error("/syntax/se-70");
 		// create and register a new variable
 		// Note: the program element does *not* need a step function, it is only there to define the variable's id
-		module.get_token(state);
-		token = module.get_token(state);
-		if (token.type != "identifier") state.error("/syntax/se-70");
+		module.get_token(state); // var keyword needs to be removed
 		let fn = get_function(parent);
-		let id = fn.variables.length;
-		let pe = { "petype": "variable", "where": where, "parent": forloop, "name": token.value, "id": id, "scope": "local" };
-		fn.variables.push(pe);
-		forloop.names[token.value] = pe;
-		forloop.var_id = id;
+		                            // state, parent, container, local
+		let pe = parse_decl_identifier(state, forloop, fn, true);
+		
+		forloop.variable = pe;
+		forloop.var_id = null; // only to identify that the loop has a variable, which might be a binding
 		forloop.var_scope = "local";
-
+		
+		console.log(forloop.names[pe.name]);
+		console.log(fn.variables[fn.variables.length-1]);
+		
 		// parse "in"
 		token = module.get_token(state);
 		if (token.type != "identifier" || token.value != "in") state.error("/syntax/se-71");
@@ -6693,6 +6792,16 @@ function parse_statement_or_declaration(state, parent)
 	return ret;
 }
 
+
+function get_container_scope(container)
+{
+	// remember the scope to which the variable's id refers
+	if (container.petype == "global scope") return "global";
+	else if (container.petype == "function" || container.petype == "method") return "local";
+	else if (container.petype == "type") return "object";
+	else module.assert(false, "unknown variable scope");
+}
+
 // The parse function parses source code and translates it into an
 // abstract syntax tree. It actually performs far more than that, in
 // particular (static) name resolution. This allows the parser to catch
@@ -6939,6 +7048,13 @@ module.Interpreter = function(program)
 	this.stepcounter = 0;     // number of program steps already executed
 	this.waittime = 0;        // time to wait before execution can continue
 	this.eventqueue = [];     // queue of events, with entries of the form {type, event}.
+	this.timerEventLimit = 1; // limit of simultaneously enqueued timer events.
+	                          // when an event takes more than 20 ms, multiple
+							  // "timer" events get enqueued; without a limit,
+							  // it can overfill the queue; other events get
+							  // processed after the "timer" events got
+							  // processed, which reduces the latency
+	this.eventCount = {};     // count of each limited event in the current queue
 	this.eventhandler = {};   // event handler by event type
 	this.service = { };       // external services, mostly for communication with the IDE
 	this.eventnames = { };    // registry of event types
@@ -7243,7 +7359,7 @@ module.Interpreter = function(program)
 					}
 				}
 			}
-			if (this.background) this.enqueueEvent("timer", {"type": this.program.types[module.typeid_null], "value": {"b": null}});
+			if (this.background) this.enqueueEventLim("timer", {"type": this.program.types[module.typeid_null], "value": {"b": null}}, this.timerEventLimit);
 		}
 
 		let context = this;
@@ -7508,6 +7624,20 @@ module.Interpreter = function(program)
 	this.enqueueEvent = function(type, event)
 	{
 		if (this.eventmode) this.eventqueue.push({"type": type, "event": event});
+	};
+	
+	this.enqueueEventLim = function(type, event, max_count)
+	{
+		if (this.eventmode)
+		{
+			if (this.eventCount.hasOwnProperty(type))
+			{
+				if (this.eventCount[type] >= max_count) return;
+				this.eventCount[type]++;
+			}
+			else this.eventCount[type] = 1;
+			this.eventqueue.push({ "type": type, "event": event });
+		}
 	};
 
 	// define an event handler - there can only be one :)
@@ -9069,6 +9199,19 @@ function programinfo(value, node_id)
 		}
 		else if (petype == "variable" || petype == "attribute")
 		{
+			if (pe.initializer)
+			{
+				ret.children.push(pe.initializer);
+				ret.ids.push(node_id + "/" + ret.children.length);
+			}
+		}
+		else if (petype == "variable-binding")
+		{
+			for (let i=0; i<pe.vars.length; i++)
+			{
+				ret.children.push(pe.vars[i]);
+				ret.ids.push(node_id + "/" + ret.children.length);
+			}
 			if (pe.initializer)
 			{
 				ret.children.push(pe.initializer);
@@ -12766,8 +12909,9 @@ if (doc) doc.children.push({
 			            | class-decl
 			            | namespace-decl ;
 
-			var-decl = "var" single-var { "," single-var } ";" ;
-			single-var = identifier [ "=" expression ] ;
+			var-decl = "var" single-init { "," single-init } ";" ;
+			single-init = (identifier [ "=" expression ] | structured-binding "=" expression) ;
+			structured-binding = "[" (identifier | structured-binding) {"," (identifier | structured-binding)} "]" ;
 			func-decl = "function" identifier "(" param-list ")" func-body ;
 			param-list = [ param-decl { "," param-decl } ] ;
 			param-decl = identifier [ "=" constant-ex ] ;
@@ -12836,7 +12980,7 @@ if (doc) doc.children.push({
 			condition = "if" expression "then" statement
 			                          [ "else" statement ] ;
 			for-loop = "for" [ loop-var "in" ] expression "do" statement ;
-			loop-var = ("var" identifier) | name ;
+			loop-var = ("var" (identifier | structured-binding)) | name ;
 			while-do-loop = "while" expression "do" statement ;
 			do-while-loop = "do" statement "while" expression ";" ;
 			break = "break" ";" ;
@@ -12882,8 +13026,9 @@ if (doc) doc.children.push({
 			<p>
 			Variables are declared with following syntax:
 			<ebnf>
-				var-decl = "var" single-var { "," single-var } ";" ;
-				  single-var = identifier [ "=" expression ] ;
+				var-decl = "var" single-init { "," single-init } ";" ;
+				single-init = (identifier [ "=" expression ] | structured-binding "=" expression) ;
+				structured-binding = "[" (identifier | structured-binding) {"," (identifier | structured-binding)} "]" ;
 			</ebnf>
 			They are referenced by their name.
 			</p>
@@ -12944,6 +13089,36 @@ if (doc) doc.children.push({
 			an object. Whenever the closure is called they are copied, and
 			the copies become parameters of the function.
 			</p>
+			
+			<h2>Structured Bindings (Extension)</h2>
+			Structured bindings provide a way to unpack arrays with a specific
+			size into multiple variables. This might improve code readability
+			and maintainability. The array should have the same number of
+			elements as the structured binding.
+			
+			<tscript>
+				var point = [1, 2];
+				var [x, y] = point;
+				# equal to
+				# var x = point[0], y = point[1];
+				
+				# var [a, b, c] = [123, 456]; # runtime error in line 6: initializer of binding expected to be array with size 3
+			</tscript>
+			
+			Structured bindings can also unpack nested arrays recursively.
+			An example is a line which is an array, that contains two elements,
+			one for each endpoint. Each endpoint is an array consisting of two numbers.
+			
+			<tscript>
+				var line = [[1, 2], [3, 4]];
+				var [[x1, y1], [x2, y2]] = line;
+				# equal to
+				# var [p1, p2] = line;
+				# var [x1, y1] = p1, [x2, y2] = p2;
+			</tscript>
+			
+			Structured bindings can also be used for the iterator variable
+			in for-loops.
 
 			<h2>Lifetime of Variables</h2>
 			<p>
@@ -13543,6 +13718,7 @@ if (doc) doc.children.push({
 				octal (prefix <code class="code">0o</code>),
 				decimal (no prefix) and
 				hexadecimal (prefix <code class="code">0x</code>).
+				The binary, octal and hexadecimal notations are an Extension to TScript.
 				The value must lie in the integer range, i.e., it must not exceed
 				2<sup>31</sup> - 1 = 2147483647.
 				</p>
@@ -13554,6 +13730,7 @@ if (doc) doc.children.push({
 						var c = -99;             # negated literal 99
 						# var d = -2147483648;   # error, range exceeded
 						var e = -2147483647-1;
+						# Nondecimal notation (Extension)
 						var f = 0xff;            # 255 in Hexadecimal
 						var g = 0o77;            # 63 in Octal
 						var h = 0b101010;        # 42 in Binary
@@ -14856,7 +15033,7 @@ if (doc) doc.children.push({
 			A for-loop has the following syntax:
 			<ebnf>
 			for-loop = "for" [ loop-var "in" ] expression "do" statement ;
-			  loop-var = ("var" identifier) | name ;
+			loop-var = ("var" (identifier | structured-binding)) | name ;
 			</ebnf>
 			The <ebnf>expression</ebnf> must evaluate to a
 			<a href="#/language/types/range">Range</a> or an
@@ -14871,6 +15048,11 @@ if (doc) doc.children.push({
 
 					# print "hello" and "world" in two lines
 					for var i in ["hello", "world"] do print(i);
+					
+					# Structured bindings (Extension)
+					# print each point like (x; y)
+					var points = [[1, 2], [3, 4], [5, 6]];
+					for var [x, y] in points do print("("+x+"; "+y+")");
 				</tscript>
 			</div>
 			<p>
@@ -15722,7 +15904,7 @@ if (doc) doc.children.push({
 					# a = ["hello", "A", "", "B", ""]
 				</tscript>
 			</td></tr>
-			<tr><th>toUpperCase</th><td>
+			<tr><th>toUpperCase (Extension)</th><td>
 				The <code class="code">function toUpperCase()</code> converts
 				the string to upper case letters. Example:
 				<tscript>
@@ -15731,7 +15913,7 @@ if (doc) doc.children.push({
 					# u = "HELLO WORLD!"
 				</tscript>
 			</td></tr>
-			<tr><th>toLowerCase</th><td>
+			<tr><th>toLowerCase (Extension)</th><td>
 				The <code class="code">function toUpperCase()</code> converts
 				the string to lower case letters. Example:
 				<tscript>
@@ -16069,7 +16251,7 @@ if (doc) doc.children.push({
 				<code class="code">function end()</code> returns the end of
 				the range.
 			</td></tr>
-			<tr><th>has</th><td>
+			<tr><th>has (Extension)</th><td>
 				<code class="code">function has(value)</code> tests whether
 				<i>value</i> is an element of the range.
 				<tscript>
