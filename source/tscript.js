@@ -658,6 +658,8 @@ let errors = {
 		"se-50": "syntax error in variable declaration; identifier expected as the variable name",
 		"se-51": "syntax error in variable declaration; expected initializer '=', comma ',' or semicolon ';'",
 		"se-51b": "syntax error in variable declaration; expected comma ',' or semicolon ';'",
+		"se-51c-": "syntax error in variable binding declaration; expected comma ',' or closing bracket ']'",
+		"se-51d-": "syntax error in variable binding declaration; initializer required",
 		"se-52": "syntax error in function declaration; identifier expected as the function name",
 		"se-53": "syntax error in constructor declaration; 'super' expected after colon ':'",
 		"se-54": "syntax error in class declaration; identifier expected as the class name",
@@ -677,7 +679,7 @@ let errors = {
 		"se-67": "syntax error in use directive; identifier expected after 'as'",
 		"se-68": "syntax error in use directive; comma ',' or semicolon ';' expected",
 		"se-69": "syntax error in conditional statement: 'then' expected",
-		"se-70": "syntax error in for-loop: identifier expected as the loop variable",
+		"se-70": "syntax error in for-loop: identifier expected as the loop variable", // FIXME currently unused, instead currently error descriptions for normal variable declarations used here
 		"se-71": "syntax error in for-loop: keyword 'in' expected",
 		"se-72": "syntax error in for-loop: keyword 'do' expected",
 		"se-73": "syntax error in for-loop; 'in' or 'do' expected",
@@ -747,6 +749,7 @@ let errors = {
 		"am-41": "argument handler passed to setEventHandler must be a function with exactly one parameter",
 		"am-42": "deepcopy failed due to $$",
 		"am-43": "infinite recursion due to recursive data structure",
+		"am-44-": "initializer of binding expected to be array with size $$",
 	},
 	"name": {
 		"ne-1": "error in function call; named parameter '$$' is already specified in call to function '$$'",
@@ -2223,7 +2226,7 @@ module.get_token = function (state, peek)
 		if (! state.eof() && state.current() == '0')
 		{
 			state.advance();
-			var cur = state.current().toLowerCase();
+			let cur = state.current().toLowerCase();
 			if (cur == 'x') {      base = 16; digits = hexDigits; state.advance(); }
 			else if (cur == 'o') { base =  8; digits = octDigits; state.advance(); }
 			else if (cur == 'b') { base =  2; digits = binDigits; state.advance(); }
@@ -2234,7 +2237,7 @@ module.get_token = function (state, peek)
 		while (! state.eof() && digits.indexOf(state.current().toLowerCase()) >= 0) state.advance();
 		if (! state.eof())
 		{
-			var cur = state.current().toLowerCase();
+			let cur = state.current().toLowerCase();
 			if (cur == '.')
 			{
 				// parse fractional part
@@ -4595,6 +4598,105 @@ function parse_assignment_or_expression(state, parent)
 	}
 }
 
+
+// EXTENSION
+// returns variable or variable-binding program element
+// it holds the function initassign(pe, frame, value)
+// which should be called with the interpreter as this argument
+// it does not contain a step and a sim function, which can be
+// added by another function
+//
+// param container: the current container to add the variables to
+// param parent:  is set var forloop in parse_for
+// param local:   boolean if scope is local and not conflicting with
+//                parent declarations, set to true by forloop
+//
+// it parses and registers variables recursively
+//
+function parse_decl_identifier(state, parent, container, local)
+{
+	let scope = local ? "local" : get_container_scope(container);
+	
+	let nextid = (container.petype == "type") ? container.objectsize : container.variables.length;
+	
+	function checkIdentifier(identifier)
+	{
+		if (!local && parent.names.hasOwnProperty(identifier)) state.error("/name/ne-14", [identifier]);
+
+		// check variable name
+		if (module.options.checkstyle && ! state.builtin() && identifier[0] >= 'A' && identifier[0] <= 'Z')
+		{
+			state.error("/style/ste-3", ["variable", identifier]);
+		}
+	}
+	
+	function recursive()
+	{
+		let where = state.get();
+		let token = module.get_token(state);
+	
+		if (token.type == "identifier")
+		{
+			checkIdentifier(token.value);
+			
+			let pe = {
+				"petype": "variable", "where": where, "parent": parent,
+				"name": token.value, "id": nextid, "scope": scope,
+				"initassign": function(pe, frame, value)
+				{
+					frame.variables[pe.id] = value;
+				}
+			};
+			
+			container.variables.push(pe);
+			parent.names[token.value] = pe;
+			if (container.petype == "type") parent.objectsize++;
+			
+			nextid += 1;
+			
+			return pe;
+		}
+		else if (token.value == '[')
+		{
+			let pe = {
+				"petype": "variable-binding", "where": where, "parent": parent,
+				"vars": [], "scope": scope,
+				"initassign": function(pe, frame, array)
+				{
+					let bindingCount = pe.vars.length;
+					if (array.type != this.program.types[module.typeid_array] || array.value.b.length != bindingCount)
+					{
+						this.error("/argument-mismatch/am-44-", [bindingCount]);
+					}
+					for(let i = 0; i < bindingCount; i++)
+					{
+						pe.vars[i].initassign.call(this, pe.vars[i], frame, array.value.b[i]);
+					}
+				}
+			};
+			
+			// parse elements
+			do
+			{
+				let pe_child = recursive();
+				
+				pe.vars.push(pe_child);
+				
+				token = module.get_token(state);
+			}
+			while(token.value == ',');
+
+			if (token.value != ']') state.error("/syntax/se-51c-"); // extension errors marked with additional -
+				
+			return pe;
+		}
+		else state.error("/syntax/se-50");
+	}
+	
+	return recursive();
+}
+
+
 // Parse a "var" statement. Even for multiple variables it is treated as
 // a single statement. The variables are placed into the container,
 // which defaults to the enclosing function or global scope.
@@ -4634,72 +4736,57 @@ function parse_var(state, parent, container)
 	// parse individual variables
 	while (true)
 	{
-		// obtain variable name
-		let where = state.get();
-		token = module.get_token(state);
-		if (token.type != "identifier") state.error("/syntax/se-50");
-		if (parent.names.hasOwnProperty(token.value)) state.error("/name/ne-14", [token.value]);
-
-		// check variable name
-		if (module.options.checkstyle && ! state.builtin() && token.value[0] >= 'A' && token.value[0] <= 'Z')
+		// obtain variable name(s)
+		let pe = parse_decl_identifier(state, parent, container, false);
+		
+		// add functionality to variable/root of structured binding
+		// the other nodes of the variable binding tree do
+		// not have a step nor sim function
+		pe.step = function()
 		{
-			state.error("/style/ste-3", ["variable", token.value]);
-		}
+			let frame = this.stack[this.stack.length - 1];
+			let pe = frame.pe[frame.pe.length - 1];
+			let ip = frame.ip[frame.ip.length - 1];
+			if (ip == 0)
+			{
+				// push the value onto the stack
+				if (pe.hasOwnProperty("initializer"))
+				{
+					frame.pe.push(pe.initializer);
+					frame.ip.push(-1);
+					return false;
+				}
+				else
+				{
+					frame.temporaries.push({"type": this.program.types[module.typeid_null], "value": {"b": null}});
+					return true;
+				}
+			}
+			else if (ip == 1)
+			{
+				// assign the value to the variable(s) in the current frame
+				pe.initassign.call(this, pe, frame, frame.temporaries.pop());	
+				return false;
+			}
+			else
+			{
+				frame.pe.pop();
+				frame.ip.pop();
+				return false;
+			}
+		};
 
-		// create the variable
-		let id = (container.petype == "type") ? container.objectsize : container.variables.length;
-		let pe = { "petype": "variable", "where": where, "parent": parent, "name": token.value, "id": id,
-				"step": function()
-						{
-							let frame = this.stack[this.stack.length - 1];
-							let pe = frame.pe[frame.pe.length - 1];
-							let ip = frame.ip[frame.ip.length - 1];
-							if (ip == 0)
-							{
-								// push the value onto the stack
-								if (pe.hasOwnProperty("initializer"))
-								{
-									frame.pe.push(pe.initializer);
-									frame.ip.push(-1);
-									return false;
-								}
-								else
-								{
-									frame.temporaries.push({"type": this.program.types[module.typeid_null], "value": {"b": null}});
-									return true;
-								}
-							}
-							else if (ip == 1)
-							{
-								// assign the value to the variable
-								frame.variables[pe.id] = frame.temporaries.pop();
-								return false;
-							}
-							else
-							{
-								frame.pe.pop();
-								frame.ip.pop();
-								return false;
-							}
-						},
-				"sim": function()
-						{
-							let frame = this.stack[this.stack.length - 1];
-							let ip = frame.ip[frame.ip.length - 1];
-							if (ip == 0)
-							{
-								let pe = frame.pe[frame.pe.length - 1];
-								return (! pe.hasOwnProperty("initializer"));
-							}
-							else return false;
-						},
-			};
-
-		// remember the scope to which the variable's id refers
-		if (container.petype == "global scope") pe.scope = "global";
-		else if (container.petype == "function" || container.petype == "method") pe.scope = "local";
-		else if (container.petype == "type") pe.scope = "object";
-		else module.assert(false, "unknown variable scope");
+		pe.sim = function()
+		{
+			let frame = this.stack[this.stack.length - 1];
+			let ip = frame.ip[frame.ip.length - 1];
+			if (ip == 0)
+			{
+				let pe = frame.pe[frame.pe.length - 1];
+				return (! pe.hasOwnProperty("initializer"));
+			}
+			else return false;
+		};
 
 		// parse the initializer
 		token = module.get_token(state);
@@ -4708,12 +4795,13 @@ function parse_var(state, parent, container)
 			pe.initializer = parse_expression(state, parent);
 			token = module.get_token(state);
 		}
-
-		// register the variable
-		container.variables.push(pe);
-		parent.names[pe.name] = pe;
+		else if (pe.petype == "variable-binding")
+		{
+			state.error("/syntax/se-51d-");
+		}
+		
+		// add instruction
 		ret.vars.push(pe);
-		if (container.petype == "type") parent.objectsize++;
 
 		// parse the delimiter
 		if (token.type == "delimiter" && token.value == ';') break;
@@ -5525,13 +5613,20 @@ function parse_for(state, parent)
 							}
 							else if (pe.hasOwnProperty("var_id"))
 							{
+								console.log("container", container);
 								let typedvalue = container.hasOwnProperty("rangemarker")
 										? {"type": this.program.types[module.typeid_integer], "value": {"b": (container.begin + index) | 0}}
 										: container[index];
 								if (pe.var_scope == "global")
 									this.stack[0].variables[pe.var_id] = typedvalue;
 								else if (pe.var_scope == "local")
-									frame.variables[pe.var_id] = typedvalue;
+								{
+									console.log("typedvalue", typedvalue);
+									if(pe.hasOwnProperty("variable")) // EXTENSION
+										pe.variable.initassign.call(this, pe.variable, frame, typedvalue);
+									else
+										frame.variables[pe.var_id] = typedvalue;
+								}
 								else if (pe.var_scope == "object")
 									frame.object.value.a[pe.var_id] = typedvalue;
 								else module.assert(false, "unknown scope: " + pe.var_scope);
@@ -5567,19 +5662,22 @@ function parse_for(state, parent)
 	token = module.get_token(state, true);
 	if (token.type == "keyword" && token.value == "var")
 	{
+		// EXTENSION structured bindings
+		// TODO state.error("/syntax/se-70");
 		// create and register a new variable
 		// Note: the program element does *not* need a step function, it is only there to define the variable's id
-		module.get_token(state);
-		token = module.get_token(state);
-		if (token.type != "identifier") state.error("/syntax/se-70");
+		module.get_token(state); // var keyword needs to be removed
 		let fn = get_function(parent);
-		let id = fn.variables.length;
-		let pe = { "petype": "variable", "where": where, "parent": forloop, "name": token.value, "id": id, "scope": "local" };
-		fn.variables.push(pe);
-		forloop.names[token.value] = pe;
-		forloop.var_id = id;
+		                            // state, parent, container, local
+		let pe = parse_decl_identifier(state, forloop, fn, true);
+		
+		forloop.variable = pe;
+		forloop.var_id = null; // only to identify that the loop has a variable, which might be a binding
 		forloop.var_scope = "local";
-
+		
+		console.log(forloop.names[pe.name]);
+		console.log(fn.variables[fn.variables.length-1]);
+		
 		// parse "in"
 		token = module.get_token(state);
 		if (token.type != "identifier" || token.value != "in") state.error("/syntax/se-71");
@@ -6317,6 +6415,16 @@ function parse_statement_or_declaration(state, parent)
 	ret = parse_statement(state, parent);
 	if (state.builtin()) markAsBuiltin(ret);
 	return ret;
+}
+
+
+function get_container_scope(container)
+{
+	// remember the scope to which the variable's id refers
+	if (container.petype == "global scope") return "global";
+	else if (container.petype == "function" || container.petype == "method") return "local";
+	else if (container.petype == "type") return "object";
+	else module.assert(false, "unknown variable scope");
 }
 
 // The parse function parses source code and translates it into an

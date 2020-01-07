@@ -10,6 +10,11 @@ For more details click [here](https://github.com/TGlas/tscript) to get to the or
 * `String.toUpperCase()`
 * `String.toLowerCase()`
 * Binary (prefix `0b`), octal (prefix `0o`) and hexadecimal (prefix `0x`) integer literals
+* Structured Bindings (Unpacking Arrays) (Possible future feature: Unpacking of objects and dictionaries)
+  eg. `var [x, y] = [1, 2];`
+
+
+See the documentation for detailed information about the extensions.
 
 <!--
 ## Getting Started

@@ -359,6 +359,19 @@ function programinfo(value, node_id)
 				ret.ids.push(node_id + "/" + ret.children.length);
 			}
 		}
+		else if (petype == "variable-binding")
+		{
+			for (let i=0; i<pe.vars.length; i++)
+			{
+				ret.children.push(pe.vars[i]);
+				ret.ids.push(node_id + "/" + ret.children.length);
+			}
+			if (pe.initializer)
+			{
+				ret.children.push(pe.initializer);
+				ret.ids.push(node_id + "/" + ret.children.length);
+			}
+		}
 		else if (petype == "function" || petype == "method")
 		{
 			for (let i=0; i<pe.params.length; i++)

@@ -400,8 +400,9 @@ if (doc) doc.children.push({
 			            | class-decl
 			            | namespace-decl ;
 
-			var-decl = "var" single-var { "," single-var } ";" ;
-			single-var = identifier [ "=" expression ] ;
+			var-decl = "var" single-init { "," single-init } ";" ;
+			single-init = (identifier [ "=" expression ] | structured-binding "=" expression) ;
+			structured-binding = "[" (identifier | structured-binding) {"," (identifier | structured-binding)} "]" ;
 			func-decl = "function" identifier "(" param-list ")" func-body ;
 			param-list = [ param-decl { "," param-decl } ] ;
 			param-decl = identifier [ "=" constant-ex ] ;
@@ -470,7 +471,7 @@ if (doc) doc.children.push({
 			condition = "if" expression "then" statement
 			                          [ "else" statement ] ;
 			for-loop = "for" [ loop-var "in" ] expression "do" statement ;
-			loop-var = ("var" identifier) | name ;
+			loop-var = ("var" (identifier | structured-binding)) | name ;
 			while-do-loop = "while" expression "do" statement ;
 			do-while-loop = "do" statement "while" expression ";" ;
 			break = "break" ";" ;
@@ -516,8 +517,9 @@ if (doc) doc.children.push({
 			<p>
 			Variables are declared with following syntax:
 			<ebnf>
-				var-decl = "var" single-var { "," single-var } ";" ;
-				  single-var = identifier [ "=" expression ] ;
+				var-decl = "var" single-init { "," single-init } ";" ;
+				single-init = (identifier [ "=" expression ] | structured-binding "=" expression) ;
+				structured-binding = "[" (identifier | structured-binding) {"," (identifier | structured-binding)} "]" ;
 			</ebnf>
 			They are referenced by their name.
 			</p>
@@ -578,6 +580,36 @@ if (doc) doc.children.push({
 			an object. Whenever the closure is called they are copied, and
 			the copies become parameters of the function.
 			</p>
+			
+			<h2>Structured Bindings (Extension)</h2>
+			Structured bindings provide a way to unpack arrays with a specific
+			size into multiple variables. This might improve code readability
+			and maintainability. The array should have the same number of
+			elements as the structured binding.
+			
+			<tscript>
+				var point = [1, 2];
+				var [x, y] = point;
+				# equal to
+				# var x = point[0], y = point[1];
+				
+				# var [a, b, c] = [123, 456]; # runtime error in line 6: initializer of binding expected to be array with size 3
+			</tscript>
+			
+			Structured bindings can also unpack nested arrays recursively.
+			An example is a line which is an array, that contains two elements,
+			one for each endpoint. Each endpoint is an array consisting of two numbers.
+			
+			<tscript>
+				var line = [[1, 2], [3, 4]];
+				var [[x1, y1], [x2, y2]] = line;
+				# equal to
+				# var [p1, p2] = line;
+				# var [x1, y1] = p1, [x2, y2] = p2;
+			</tscript>
+			
+			Structured bindings can also be used for the iterator variable
+			in for-loops.
 
 			<h2>Lifetime of Variables</h2>
 			<p>
@@ -1177,6 +1209,7 @@ if (doc) doc.children.push({
 				octal (prefix <code class="code">0o</code>),
 				decimal (no prefix) and
 				hexadecimal (prefix <code class="code">0x</code>).
+				The binary, octal and hexadecimal notations are an Extension to TScript.
 				The value must lie in the integer range, i.e., it must not exceed
 				2<sup>31</sup> - 1 = 2147483647.
 				</p>
@@ -1188,6 +1221,7 @@ if (doc) doc.children.push({
 						var c = -99;             # negated literal 99
 						# var d = -2147483648;   # error, range exceeded
 						var e = -2147483647-1;
+						# Nondecimal notation (Extension)
 						var f = 0xff;            # 255 in Hexadecimal
 						var g = 0o77;            # 63 in Octal
 						var h = 0b101010;        # 42 in Binary
@@ -2490,7 +2524,7 @@ if (doc) doc.children.push({
 			A for-loop has the following syntax:
 			<ebnf>
 			for-loop = "for" [ loop-var "in" ] expression "do" statement ;
-			  loop-var = ("var" identifier) | name ;
+			loop-var = ("var" (identifier | structured-binding)) | name ;
 			</ebnf>
 			The <ebnf>expression</ebnf> must evaluate to a
 			<a href="#/language/types/range">Range</a> or an
@@ -2505,6 +2539,11 @@ if (doc) doc.children.push({
 
 					# print "hello" and "world" in two lines
 					for var i in ["hello", "world"] do print(i);
+					
+					# Structured bindings (Extension)
+					# print each point like (x; y)
+					var points = [[1, 2], [3, 4], [5, 6]];
+					for var [x, y] in points do print("("+x+"; "+y+")");
 				</tscript>
 			</div>
 			<p>
@@ -3356,7 +3395,7 @@ if (doc) doc.children.push({
 					# a = ["hello", "A", "", "B", ""]
 				</tscript>
 			</td></tr>
-			<tr><th>toUpperCase</th><td>
+			<tr><th>toUpperCase (Extension)</th><td>
 				The <code class="code">function toUpperCase()</code> converts
 				the string to upper case letters. Example:
 				<tscript>
@@ -3365,7 +3404,7 @@ if (doc) doc.children.push({
 					# u = "HELLO WORLD!"
 				</tscript>
 			</td></tr>
-			<tr><th>toLowerCase</th><td>
+			<tr><th>toLowerCase (Extension)</th><td>
 				The <code class="code">function toUpperCase()</code> converts
 				the string to lower case letters. Example:
 				<tscript>
@@ -3703,7 +3742,7 @@ if (doc) doc.children.push({
 				<code class="code">function end()</code> returns the end of
 				the range.
 			</td></tr>
-			<tr><th>has</th><td>
+			<tr><th>has (Extension)</th><td>
 				<code class="code">function has(value)</code> tests whether
 				<i>value</i> is an element of the range.
 				<tscript>
