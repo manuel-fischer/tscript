@@ -32,9 +32,12 @@ let module = {
 						s += " - released " + module.version.day
 								+ "." + module.version.month
 								+ "." + module.version.year
-								+ " - (C) Tobias Glasmachers 2018" + "-" + module.version.year;
+								+ " - (C) Tobias Glasmachers 2018" + "-" + module.version.year
+								+ " extended by Manuel Fischer (patch "
+								+ module.version.mfextensions + ")";
 						return s;
 					},
+			mfextensions: 0,
 		},
 
 	// hard-coded IDs of the core types
@@ -1438,6 +1441,7 @@ let core = {
 							"#month": {"type": this.program.types[module.typeid_integer], "value": {"b": module.version.month}},
 							"#year":  {"type": this.program.types[module.typeid_integer], "value": {"b": module.version.year}},
 							"#full":  {"type": this.program.types[module.typeid_string],  "value": {"b": module.version.full()}},
+							"#mfextensions":  {"type": this.program.types[module.typeid_integer], "value": {"b": module.version.mfextensions}},
 						};
 				return {"type": this.program.types[module.typeid_dictionary], "value": {"b": ret}};
 			},

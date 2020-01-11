@@ -62,6 +62,10 @@ if (doc) doc.children.push({
 			<li>month: month of the release date</li>
 			<li>year: year of the release date</li>
 			<li>full: human-readable version string</li>
+			<li>mfextension: number of changes since 11.01.2020 to the extended version of TScript by Manuel Fischer
+			not available on the original version of TScript, this allows <code class="code">version().has("mfextensions")</code> to be used
+			to check if the script runs on the extended version
+			</li>
 			</ul>
 		</td></tr>
 		<tr><th>print</th><td>

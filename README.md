@@ -6,13 +6,18 @@ It is based on the reference implementation by Tobias Glasmachers.
 For more details click [here](https://github.com/TGlas/tscript) to get to the original repository.
 
 ## Additional features
-* `Range.has(key)`
-* `String.toUpperCase()`
-* `String.toLowerCase()`
-* Binary (prefix `0b`), octal (prefix `0o`) and hexadecimal (prefix `0x`) integer literals
-* Structured Bindings (Unpacking Arrays) (Possible future feature: Unpacking of objects and dictionaries)
+* `Range.has(key)` (patch 0)
+* `String.toUpperCase()` (patch 0)
+* `String.toLowerCase()` (patch 0)
+* Binary (prefix `0b`), octal (prefix `0o`) and hexadecimal (prefix `0x`) integer literals (patch 0)
+* Structured Bindings (Unpacking Arrays) (Possible future feature: Unpacking of objects and dictionaries) (patch 0)
   eg. `var [x, y] = [1, 2];`
+* `"mfextensions"`-entry in `version()`,
+  the value is the number of changes to this extension since 11.01.2020,
+  the other version information is kept equal to the correspoinding original TScript version
 
+## Portable checking for this extended version
+* `version().has("mfextensions")`, it results in `true` in this extended version, `false` otherwise
 
 See the documentation for detailed information about the extensions.
 
