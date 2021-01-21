@@ -1485,18 +1485,20 @@ function createTitleBar(dlg, title, onClose)
 // TODO move to tgui.js
 function createDialog(title, size, onClose)
 {
-	let dlg_width        = size["width_min"];
+	/*let dlg_width        = size["width_min"];
 	let dlg_width_scale  = size["width_scale"];
 	let dlg_height       = size["height_min"];
 	let dlg_height_scale = size["height_scale"];
 	
 	let width_css  = "calc(max(" + dlg_width  + "px, " + 100*dlg_width_scale  + "vw))";
-	let height_css = "calc(max(" + dlg_height + "px, " + 100*dlg_height_scale + "vh))";
+	let height_css = "calc(max(" + dlg_height + "px, " + 100*dlg_height_scale + "vh))";*/
 	
 	let dlg = tgui.createElement({
 			"type": "div",
-			"style": {"width": width_css, "height": height_css, "background": "#eee", "overflow": "hidden"},
+			"style": {/*"width": width_css, "height": height_css,*/ "background": "#eee", "overflow": "hidden"},
 		});
+	dlg["tgui_modal_size"] = size; // used to arrange the dialog properly
+		
 	let titlebar = createTitleBar(dlg, title, onClose);
 
 	dlg.onKeyDown = function(event)

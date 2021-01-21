@@ -1149,14 +1149,38 @@ let separator = module.createElement({
 		});
 let modal = [];
 
+function roundToPhysicalPixel(virtual_px)
+{
+	return (virtual_px*window.devicePixelRatio | 0)/window.devicePixelRatio;
+}
+
 // Center a dialog at the center of the window
 // Dialogs are aligned at integral pixel coordinates to
 // avoid pixel-jittering
 function centerModalDialog(dlg)
 {
-	let rect = dlg.getBoundingClientRect();
-	dlg.style["left"] = ((window.innerWidth-rect.width)/2 | 0)+"px";
-	dlg.style["top"]  = ((window.innerHeight-rect.height)/2 | 0)+"px";
+	let dlg_width, dlg_height;
+	if(dlg.hasOwnProperty("tgui_modal_size"))
+	{
+		let size = dlg["tgui_modal_size"];
+		
+		dlg_width = roundToPhysicalPixel(Math.max(size["width_min"], size["width_scale"]*window.innerWidth));
+		dlg_height = roundToPhysicalPixel(Math.max(size["height_min"], size["height_scale"]*window.innerHeight));
+		console.log(dlg_width);
+		console.log(dlg_height);
+		console.log(size["width_min"]);
+		
+		dlg.style["width"] = dlg_width+"px";
+		dlg.style["height"] = dlg_height+"px";
+	}
+	else
+	{
+		let rect = dlg.getBoundingClientRect();
+		dlg_width = rect.width;
+		dlg_height = rect.height;
+	}
+	dlg.style["left"] = roundToPhysicalPixel((window.innerWidth-dlg_width)/2)+"px";
+	dlg.style["top"]  = roundToPhysicalPixel((window.innerHeight-dlg_height)/2)+"px";
 }
 
 // Center all dialogs whenever the window changed
