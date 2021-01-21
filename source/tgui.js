@@ -212,7 +212,7 @@ module.createCanvasIcon = function(description)
 	let canvas = module.createElement({
 		"type": "canvas", 
 		"parent": description.parent,
-		"classname": "tgui", 
+		"classname": description.hasOwnProperty("classname")?description["classname"]:"tgui", 
 		"style": style,
 	});
 	canvas.width = description.width;
@@ -794,13 +794,14 @@ module.createPanel = function(description)
 			"draw": control.icondraw,
 			"width": 20,
 			"height": 20,
+			"classname": "tgui-panel-titlebar-icon",
 			"style": {"left": "1px", "top": "1px", "cursor": "pointer"},
 	});
 	control.titlebar_icon.addEventListener("dblclick", function (event) { control.dock("icon"); return false; });
 	
 	// title bar text only
-	control.titlebar = tgui.createElement({
-				"type": "span",
+	control.titlebar = tgui.createElement({ // TODO
+				"type": "label",
 				"dblclick": function (event) { 
 					control.dock(control.state == "max" ? control.fallbackState : "max");
 					return false;
@@ -808,6 +809,7 @@ module.createPanel = function(description)
 				"parent": control.titlebar_container,
 				"text": control.title,
 				"classname": "tgui-panel-titlebar-title",
+				"style": {"height": "20px", "line-height": "20px"},
 		});
 		
 	control.button_left = tgui.createButton({
@@ -1147,6 +1149,25 @@ let separator = module.createElement({
 		});
 let modal = [];
 
+// Center a dialog at the center of the window
+// Dialogs are aligned at integral pixel coordinates to
+// avoid pixel-jittering
+function centerModalDialog(dlg)
+{
+	let rect = dlg.getBoundingClientRect();
+	dlg.style["left"] = ((window.innerWidth-rect.width)/2 | 0)+"px";
+	dlg.style["top"]  = ((window.innerHeight-rect.height)/2 | 0)+"px";
+}
+
+// Center all dialogs whenever the window changed
+function centerAllModalDialogs()
+{
+	for(let i = 0; i < modal.length; ++i) centerModalDialog(modal[i]);
+}
+
+// TODO: merge this with arrangePanels, that is also installed as a "resize"-callback
+window.addEventListener("resize", centerAllModalDialogs);
+
 // Show a (newly created) element as a modal dialog. Modal dialogs can
 // be stacked. The element should not have been added to a parent yet.
 // It has "fixed" positioning and hence is expected to have been styled
@@ -1169,6 +1190,7 @@ module.startModal = function(element)
 	element.style.zIndex = 100;
 	element.className += " tgui tgui-modal";
 	document.body.appendChild(element);
+	centerModalDialog(element);
 	modal.push(element);
 }
 

@@ -870,7 +870,7 @@ let cmd_export = function()
 	if (! title || title === "") title = "tscript-export";
 	let fn = title;
 	if (! fn.endsWith("html") && ! fn.endsWith("HTML") && ! fn.endsWith("htm") && ! fn.endsWith("HTM")) fn += ".html";
-	let dlg = createDialog("export program as webpage", {"width": "calc(max(400px, 50vw))", "height": "calc(max(260px, 50vh))"});
+	let dlg = createDialog("export program as webpage", {"width_min": 400, "width_scale": 0.50, "height_min": 260, "height_scale": 0.50});
 	let status = tgui.createElement({
 			"parent": dlg,
 			"type": "div",
@@ -1445,12 +1445,12 @@ function createTitleBar(dlg, title, onClose)
 			"classname": "tgui-modal-titlebar",
 		});
 		
-	let titlebar_title = tgui.createElement({
+	let titlebar_title = tgui.createElement({ // TODO similar to panel titlebars
 			"parent": titlebar,
 			"type": "span",
-			"style": {},
-			"classname": "tgui-modal-titlebar-title",
 			"text": title,
+			"classname": "tgui-modal-titlebar-title",
+			"style": {"height": "20px", "line-height": "20px"},
 		});
 		
 	let close = tgui.createButton({
@@ -1485,9 +1485,17 @@ function createTitleBar(dlg, title, onClose)
 // TODO move to tgui.js
 function createDialog(title, size, onClose)
 {
+	let dlg_width        = size["width_min"];
+	let dlg_width_scale  = size["width_scale"];
+	let dlg_height       = size["height_min"];
+	let dlg_height_scale = size["height_scale"];
+	
+	let width_css  = "calc(max(" + dlg_width  + "px, " + 100*dlg_width_scale  + "vw))";
+	let height_css = "calc(max(" + dlg_height + "px, " + 100*dlg_height_scale + "vh))";
+	
 	let dlg = tgui.createElement({
 			"type": "div",
-			"style": {"width": size["width"], "height": size["height"], "background": "#eee", "overflow": "hidden"},
+			"style": {"width": width_css, "height": height_css, "background": "#eee", "overflow": "hidden"},
 		});
 	let titlebar = createTitleBar(dlg, title, onClose);
 
@@ -1504,7 +1512,7 @@ function createDialog(title, size, onClose)
 
 function configDlg()
 {
-	let dlg = createDialog("configuration", {"width": "calc(max(370px, 50vw))", "left": "25vw", "height": "calc(max(270px, 50vh))", "top": "25vh"}, saveConfig);
+	let dlg = createDialog("configuration", {"width_min": 370, "width_scale": 0.50, "height_min": 270, "height_scale": 0.50}, saveConfig);
 	let content = tgui.createElement({
 			"parent": dlg,
 			"type": "div",
@@ -1525,7 +1533,7 @@ function configDlg()
 			let btn = i;
 			description.click = function()
 					{
-						let dlg = createDialog("set hotkey", {"width": "calc(max(340px, 30vw))", "height": "calc(max(220px, 30vh))"});
+						let dlg = createDialog("set hotkey", {"width_min": 340, "width_scale": 0.30, "height_min": 220, "height_scale": 0.30});
 						let icon = tgui.createCanvasIcon({
 							"parent": dlg, 
 							"width": 20, "height": 20, 
@@ -1642,7 +1650,7 @@ function fileDlg(title, filename, allowNewFilename, onOkay)
 	files.sort();
 
 	// create controls
-	let dlg = createDialog(title, {"width": "calc(max(440px, 50vw))", "left": "25vw", "height": "calc(max(260px, 70vh))", "top": "15vh"});
+	let dlg = createDialog(title, {"width_min": 440, "width_scale": 0.50, "height_min": 260, "height_scale": 0.70});
 	let dlgContent = tgui.createElement({
 		"parent": dlg,
 		"type": "div",
@@ -1981,7 +1989,7 @@ module.create = function(container, options)
 				"style": {
 					"float": "left",
 					"width": "calc(min(250px, max(20px, 50vw - 270px)))",
-					"height": "23px",
+					"height": "22px",
 					// clipping
 					"white-space": "nowrap",
 					"overflow": "hidden",
@@ -2092,14 +2100,14 @@ module.create = function(container, options)
 				"click": () => showdoc(),
 				"text": "documentation",
 				"parent": module.toolbar,
-				"style": {"position": "absolute", "right": "0px"},
+				"style": {"position": "absolute", "height": "22px", "right": "0px"},
 			});
 			
 		
 		// pressing F1 
 		tgui.setHotkey("F1", function()
 			{
-				let dlg = createDialog("open documentation", {"width": "calc(max(300px, 20vw))", "height": "calc(max(150px, 15vh))"});
+				let dlg = createDialog("open documentation", {"width_min": 300, "width_scale": 0.20, "height_min": 150, "height_scale": 0.15});
 				
 				let selection = module.sourcecode.getSelection();
 				// maximum limit of 30 characters
