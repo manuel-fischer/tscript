@@ -7986,7 +7986,7 @@ module.createCanvasIcon = function(description)
 	let canvas = module.createElement({
 		"type": "canvas", 
 		"parent": description.parent,
-		"classname": "tgui", 
+		"classname": description.hasOwnProperty("classname")?description["classname"]:"tgui", 
 		"style": style,
 	});
 	canvas.width = description.width;
@@ -8568,13 +8568,14 @@ module.createPanel = function(description)
 			"draw": control.icondraw,
 			"width": 20,
 			"height": 20,
+			"classname": "tgui-panel-titlebar-icon",
 			"style": {"left": "1px", "top": "1px", "cursor": "pointer"},
 	});
 	control.titlebar_icon.addEventListener("dblclick", function (event) { control.dock("icon"); return false; });
 	
 	// title bar text only
-	control.titlebar = tgui.createElement({
-				"type": "span",
+	control.titlebar = tgui.createElement({ // TODO
+				"type": "label",
 				"dblclick": function (event) { 
 					control.dock(control.state == "max" ? control.fallbackState : "max");
 					return false;
@@ -8582,6 +8583,7 @@ module.createPanel = function(description)
 				"parent": control.titlebar_container,
 				"text": control.title,
 				"classname": "tgui-panel-titlebar-title",
+				"style": {"height": "20px", "line-height": "20px"},
 		});
 		
 	control.button_left = tgui.createButton({
@@ -8921,6 +8923,49 @@ let separator = module.createElement({
 		});
 let modal = [];
 
+function roundToPhysicalPixel(virtual_px)
+{
+	return (virtual_px*window.devicePixelRatio | 0)/window.devicePixelRatio;
+}
+
+// Center a dialog at the center of the window
+// Dialogs are aligned at integral pixel coordinates to
+// avoid pixel-jittering
+function centerModalDialog(dlg)
+{
+	let dlg_width, dlg_height;
+	if(dlg.hasOwnProperty("tgui_modal_size"))
+	{
+		let size = dlg["tgui_modal_size"];
+		
+		dlg_width = roundToPhysicalPixel(Math.max(size["width_min"], size["width_scale"]*window.innerWidth));
+		dlg_height = roundToPhysicalPixel(Math.max(size["height_min"], size["height_scale"]*window.innerHeight));
+		console.log(dlg_width);
+		console.log(dlg_height);
+		console.log(size["width_min"]);
+		
+		dlg.style["width"] = dlg_width+"px";
+		dlg.style["height"] = dlg_height+"px";
+	}
+	else
+	{
+		let rect = dlg.getBoundingClientRect();
+		dlg_width = rect.width;
+		dlg_height = rect.height;
+	}
+	dlg.style["left"] = roundToPhysicalPixel((window.innerWidth-dlg_width)/2)+"px";
+	dlg.style["top"]  = roundToPhysicalPixel((window.innerHeight-dlg_height)/2)+"px";
+}
+
+// Center all dialogs whenever the window changed
+function centerAllModalDialogs()
+{
+	for(let i = 0; i < modal.length; ++i) centerModalDialog(modal[i]);
+}
+
+// TODO: merge this with arrangePanels, that is also installed as a "resize"-callback
+window.addEventListener("resize", centerAllModalDialogs);
+
 // Show a (newly created) element as a modal dialog. Modal dialogs can
 // be stacked. The element should not have been added to a parent yet.
 // It has "fixed" positioning and hence is expected to have been styled
@@ -8943,6 +8988,7 @@ module.startModal = function(element)
 	element.style.zIndex = 100;
 	element.className += " tgui tgui-modal";
 	document.body.appendChild(element);
+	centerModalDialog(element);
 	modal.push(element);
 }
 
@@ -19097,8 +19143,7 @@ let cmd_export = function()
 	if (! title || title === "") title = "tscript-export";
 	let fn = title;
 	if (! fn.endsWith("html") && ! fn.endsWith("HTML") && ! fn.endsWith("htm") && ! fn.endsWith("HTM")) fn += ".html";
-	let dlg = createDialog("export program as webpage", {"width": "calc(max(400px, 50vw))", "height": "calc(max(260px, 50vh))"});
-
+	let dlg = createDialog("export program as webpage", {"width_min": 400, "width_scale": 0.50, "height_min": 260, "height_scale": 0.50});
 	let status = tgui.createElement({
 			"parent": dlg,
 			"type": "div",
@@ -19673,12 +19718,12 @@ function createTitleBar(dlg, title, onClose)
 			"classname": "tgui-modal-titlebar",
 		});
 		
-	let titlebar_title = tgui.createElement({
+	let titlebar_title = tgui.createElement({ // TODO similar to panel titlebars
 			"parent": titlebar,
 			"type": "span",
-			"style": {},
-			"classname": "tgui-modal-titlebar-title",
 			"text": title,
+			"classname": "tgui-modal-titlebar-title",
+			"style": {"height": "20px", "line-height": "20px"},
 		});
 		
 	let close = tgui.createButton({
@@ -19713,10 +19758,20 @@ function createTitleBar(dlg, title, onClose)
 // TODO move to tgui.js
 function createDialog(title, size, onClose)
 {
+	/*let dlg_width        = size["width_min"];
+	let dlg_width_scale  = size["width_scale"];
+	let dlg_height       = size["height_min"];
+	let dlg_height_scale = size["height_scale"];
+	
+	let width_css  = "calc(max(" + dlg_width  + "px, " + 100*dlg_width_scale  + "vw))";
+	let height_css = "calc(max(" + dlg_height + "px, " + 100*dlg_height_scale + "vh))";*/
+	
 	let dlg = tgui.createElement({
 			"type": "div",
-			"style": {"width": size["width"], "height": size["height"], "background": "#eee", "overflow": "hidden"},
+			"style": {"background": "#eee", "overflow": "hidden"},
 		});
+	dlg["tgui_modal_size"] = size; // used to arrange the dialog properly
+		
 	let titlebar = createTitleBar(dlg, title, onClose);
 
 	dlg.onKeyDown = function(event)
@@ -19732,7 +19787,7 @@ function createDialog(title, size, onClose)
 
 function configDlg()
 {
-	let dlg = createDialog("configuration", {"width": "calc(max(370px, 50vw))", "left": "25vw", "height": "calc(max(270px, 50vh))", "top": "25vh"}, saveConfig);
+	let dlg = createDialog("configuration", {"width_min": 370, "width_scale": 0.50, "height_min": 270, "height_scale": 0.50}, saveConfig);
 	let content = tgui.createElement({
 			"parent": dlg,
 			"type": "div",
@@ -19753,7 +19808,7 @@ function configDlg()
 			let btn = i;
 			description.click = function()
 					{
-						let dlg = createDialog("set hotkey", {"width": "calc(max(340px, 30vw))", "height": "calc(max(220px, 30vh))"});
+						let dlg = createDialog("set hotkey", {"width_min": 340, "width_scale": 0.30, "height_min": 220, "height_scale": 0.30});
 						let icon = tgui.createCanvasIcon({
 							"parent": dlg, 
 							"width": 20, "height": 20, 
@@ -19870,7 +19925,7 @@ function fileDlg(title, filename, allowNewFilename, onOkay)
 	files.sort();
 
 	// create controls
-	let dlg = createDialog(title, {"width": "calc(max(440px, 50vw))", "left": "25vw", "height": "calc(max(260px, 70vh))", "top": "15vh"});
+	let dlg = createDialog(title, {"width_min": 440, "width_scale": 0.50, "height_min": 260, "height_scale": 0.70});
 	let dlgContent = tgui.createElement({
 		"parent": dlg,
 		"type": "div",
@@ -19910,6 +19965,7 @@ function fileDlg(title, filename, allowNewFilename, onOkay)
 			"click": () => importFile(),
 			"classname": "tgui-dialog-button"
 		});
+
 	let status = tgui.createElement({
 			"parent": toolbar,
 			"type": "label",
@@ -20208,7 +20264,7 @@ module.create = function(container, options)
 				"style": {
 					"float": "left",
 					"width": "calc(min(250px, max(20px, 50vw - 270px)))",
-					"height": "23px",
+					"height": "22px",
 					// clipping
 					"white-space": "nowrap",
 					"overflow": "hidden",
@@ -20319,14 +20375,14 @@ module.create = function(container, options)
 				"click": () => showdoc(),
 				"text": "documentation",
 				"parent": module.toolbar,
-				"style": {"position": "absolute", "right": "0px"},
+				"style": {"position": "absolute", "height": "22px", "right": "0px"},
 			});
 			
 		
 		// pressing F1 
 		tgui.setHotkey("F1", function()
 			{
-				let dlg = createDialog("open documentation", {"width": "calc(max(300px, 20vw))", "height": "calc(max(150px, 15vh))"});
+				let dlg = createDialog("open documentation", {"width_min": 300, "width_scale": 0.20, "height_min": 150, "height_scale": 0.15});
 				
 				let selection = module.sourcecode.getSelection();
 				// maximum limit of 30 characters

@@ -1495,7 +1495,7 @@ function createDialog(title, size, onClose)
 	
 	let dlg = tgui.createElement({
 			"type": "div",
-			"style": {/*"width": width_css, "height": height_css,*/ "background": "#eee", "overflow": "hidden"},
+			"style": {"background": "#eee", "overflow": "hidden"},
 		});
 	dlg["tgui_modal_size"] = size; // used to arrange the dialog properly
 		
