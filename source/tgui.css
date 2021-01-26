@@ -71,7 +71,7 @@
 /* used for program status on the toolbar */
 .tgui-label
 {
-	background: #ddd;
+	background: #ccc;
 	box-shadow: inset 0px  1px 4px #00000030,
 				inset 0px -1px 4px #ffffff50,
 				0px 0px 1px 0px #000000a0,
@@ -179,12 +179,9 @@
 .tgui-status-box
 {
 	background: #eee;
-	
-	font-size: 10pt;
-	
-	padding: 4px
+	vertical-align: middle;
+	padding: 4px;
 }
-
 
 .tgui-list-box
 {

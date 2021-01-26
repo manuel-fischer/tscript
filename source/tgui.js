@@ -533,13 +533,13 @@ module.panelcontainer = null;
 module.iconcontainer = null;
 
 // load panel arrangement data from local storage
-function loadPanelData(title)
+function loadPanelData(panel_id)
 {
 	let str = localStorage.getItem("tgui.panels");
 	if (str)
 	{
 		let paneldata = JSON.parse(str);
-		if (paneldata.hasOwnProperty(title)) return paneldata[title];
+		if (paneldata.hasOwnProperty(panel_id)) return paneldata[panel_id];
 	}
 	return null;
 }
@@ -559,7 +559,7 @@ module.savePanelData = function()
 		d.floatingpos = p.floatingpos;
 		d.floatingsize = p.floatingsize;
 		d.dockedheight = p.dockedheight;
-		paneldata[p.title] = d;
+		paneldata[p.id] = d;
 	}
 	localStorage.setItem("tgui.panels", JSON.stringify(paneldata));
 }
@@ -718,6 +718,7 @@ window.setTimeout(poll, 1000);   // start with a short delay
 
 // Create a panel.
 // The description object has the following fields:
+// id: a string that identifies the window, used to restore window positions
 // title: text in the title bar
 // floatingpos: [left, top] floating position
 // floatingsize: [width, height] size in floating state
@@ -730,7 +731,7 @@ let free_panel_id = 1;
 module.createPanel = function(description)
 {
 	// load state from local storage if possible
-	let stored = loadPanelData(description.title);
+	let stored = loadPanelData(description.id);
 	if (stored)
 	{
 		// load position and size
@@ -835,7 +836,7 @@ module.createPanel = function(description)
 				},
 				"parent": control.titlebar_container,
 				"classname": "tgui-panel-dockbutton",
-				"tooltip-right": "dock left",
+				"tooltip-right": "Dock left",
 			});
 	control.button_right = tgui.createButton({
 				"click": function () { control.dock("right"); return false; },
@@ -860,7 +861,7 @@ module.createPanel = function(description)
 				},
 				"parent": control.titlebar_container,
 				"classname": "tgui-panel-dockbutton",
-				"tooltip-right": "dock right",
+				"tooltip-right": "Dock right",
 			});
 	control.button_max = tgui.createButton({
 				"click": function () { control.dock("max"); return false; },
@@ -881,7 +882,7 @@ module.createPanel = function(description)
 				},
 				"parent": control.titlebar_container,
 				"classname": "tgui-panel-dockbutton",
-				"tooltip-right": "maximize",
+				"tooltip-right": "Maximize",
 			});
 	control.button_float = tgui.createButton({
 				"click": function () { control.dock("float"); return false; },
@@ -906,7 +907,7 @@ module.createPanel = function(description)
 				},
 				"parent": control.titlebar_container,
 				"classname": "tgui-panel-dockbutton",
-				"tooltip-right": "floating",
+				"tooltip-right": "Floating",
 			});
 	control.button_icon = tgui.createButton({
 				"click": function (event) { control.dock("icon"); return false; },
@@ -924,7 +925,7 @@ module.createPanel = function(description)
 				},
 				"parent": control.titlebar_container,
 				"classname": "tgui-panel-dockbutton",
-				"tooltip-right": "minimize",
+				"tooltip-right": "Minimize",
 			});
 
 	// create the content div
