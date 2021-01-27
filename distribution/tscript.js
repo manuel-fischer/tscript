@@ -8170,7 +8170,7 @@ module.createTreeControl = function(description)
 			td1.appendChild(state.toggle);
 			td2.appendChild(state.element);
 
-			state.element.id = "tgui.id." + (Math.random() + 1);
+			state.element.id = "tgui.id." + (Math.random() + 1); // TODO: bad code
 			state.element.className = "tgui tgui-tree-element";
 
 			// initialize the toggle button
@@ -8307,13 +8307,13 @@ module.panelcontainer = null;
 module.iconcontainer = null;
 
 // load panel arrangement data from local storage
-function loadPanelData(title)
+function loadPanelData(panel_name)
 {
 	let str = localStorage.getItem("tgui.panels");
 	if (str)
 	{
 		let paneldata = JSON.parse(str);
-		if (paneldata.hasOwnProperty(title)) return paneldata[title];
+		if (paneldata.hasOwnProperty(panel_name)) return paneldata[panel_name];
 	}
 	return null;
 }
@@ -8333,7 +8333,7 @@ module.savePanelData = function()
 		d.floatingpos = p.floatingpos;
 		d.floatingsize = p.floatingsize;
 		d.dockedheight = p.dockedheight;
-		paneldata[p.title] = d;
+		paneldata[p.name] = d;
 	}
 	localStorage.setItem("tgui.panels", JSON.stringify(paneldata));
 }
@@ -8492,19 +8492,25 @@ window.setTimeout(poll, 1000);   // start with a short delay
 
 // Create a panel.
 // The description object has the following fields:
-// title: text in the title bar
-// floatingpos: [left, top] floating position
-// floatingsize: [width, height] size in floating state
-// dockedheight: height in left or right state
-// state: current state, i.e., "left", "right", "max", "float", "icon", "disabled"
-// icondraw: draw function for the icon representing the panel in "icon" mode
-// onResize: callback function(width, height) on resize
-// onArrange: callback function() on arranging (possible position/size change)
+// - name:         a string that identifies the window, used to restore window positions
+// - title:        text in the title bar
+// - floatingpos:  [left, top] floating position
+// - floatingsize: [width, height] size in floating state
+// - dockedheight: height in left or right state
+// - state:        current state, i.e., "left", "right", "max", "float", "icon", "disabled"
+// - icondraw:     draw function for the icon representing the panel in "icon" mode, also drawn in the titlebar of the panel
+// - onResize:     callback function(width, height) on resize
+// - onArrange:    callback function() on arranging (possible position/size change)
+// those properties are carried over to the returned object
+// and the following fields are contained in the returned object:
+// - content:      a DOM element, that represents the content of the panel
+// - dom:          a DOM element, that represents the whole panel
+// - and others, mainly the titlebar components
 let free_panel_id = 1;
 module.createPanel = function(description)
 {
 	// load state from local storage if possible
-	let stored = loadPanelData(description.title);
+	let stored = loadPanelData(description.name);
 	if (stored)
 	{
 		// load position and size
@@ -8531,7 +8537,7 @@ module.createPanel = function(description)
 
 	// create the main objects
 	let control = Object.assign({}, description);
-	control.state = "disabled";
+	control.state = "disabled"; // Later overwritten by a call to control.dock
 	let panel = tgui.createElement({"type": "div", "classname": "tgui-panel-container"});
 	control.dom = panel;
 	control.panelID = free_panel_id;
@@ -8609,7 +8615,7 @@ module.createPanel = function(description)
 				},
 				"parent": control.titlebar_container,
 				"classname": "tgui-panel-dockbutton",
-				"tooltip-right": "dock left",
+				"tooltip-right": "Dock left",
 			});
 	control.button_right = tgui.createButton({
 				"click": function () { control.dock("right"); return false; },
@@ -8634,7 +8640,7 @@ module.createPanel = function(description)
 				},
 				"parent": control.titlebar_container,
 				"classname": "tgui-panel-dockbutton",
-				"tooltip-right": "dock right",
+				"tooltip-right": "Dock right",
 			});
 	control.button_max = tgui.createButton({
 				"click": function () { control.dock("max"); return false; },
@@ -8655,7 +8661,7 @@ module.createPanel = function(description)
 				},
 				"parent": control.titlebar_container,
 				"classname": "tgui-panel-dockbutton",
-				"tooltip-right": "maximize",
+				"tooltip-right": "Maximize",
 			});
 	control.button_float = tgui.createButton({
 				"click": function () { control.dock("float"); return false; },
@@ -8680,7 +8686,7 @@ module.createPanel = function(description)
 				},
 				"parent": control.titlebar_container,
 				"classname": "tgui-panel-dockbutton",
-				"tooltip-right": "floating",
+				"tooltip-right": "Floating",
 			});
 	control.button_icon = tgui.createButton({
 				"click": function (event) { control.dock("icon"); return false; },
@@ -8698,11 +8704,15 @@ module.createPanel = function(description)
 				},
 				"parent": control.titlebar_container,
 				"classname": "tgui-panel-dockbutton",
-				"tooltip-right": "minimize",
+				"tooltip-right": "Minimize",
 			});
 
 	// create the content div
-	control.content = tgui.createElement({"type": "div", parent: panel, "classname": "tgui tgui-panel-content"});
+	control.content = tgui.createElement({
+		"type":       "div", 
+		"parent":     panel, 
+		"classname":  "tgui tgui-panel-content"
+	});
 
 	// create the icon
 	control.icon = tgui.createButton({
@@ -8934,15 +8944,13 @@ function roundToPhysicalPixel(virtual_px)
 function centerModalDialog(dlg)
 {
 	let dlg_width, dlg_height;
+	let scr_width = window.innerWidth, scr_height = window.innerHeight;
 	if(dlg.hasOwnProperty("tgui_modal_size"))
 	{
 		let size = dlg["tgui_modal_size"];
 		
-		dlg_width = roundToPhysicalPixel(Math.max(size["width_min"], size["width_scale"]*window.innerWidth));
-		dlg_height = roundToPhysicalPixel(Math.max(size["height_min"], size["height_scale"]*window.innerHeight));
-		console.log(dlg_width);
-		console.log(dlg_height);
-		console.log(size["width_min"]);
+		dlg_width = roundToPhysicalPixel(Math.min(Math.max(size["width_min"], size["width_scale"]*scr_width), scr_width));
+		dlg_height = roundToPhysicalPixel(Math.min(Math.max(size["height_min"], size["height_scale"]*scr_height), scr_height));
 		
 		dlg.style["width"] = dlg_width+"px";
 		dlg.style["height"] = dlg_height+"px";
@@ -8953,8 +8961,8 @@ function centerModalDialog(dlg)
 		dlg_width = rect.width;
 		dlg_height = rect.height;
 	}
-	dlg.style["left"] = roundToPhysicalPixel((window.innerWidth-dlg_width)/2)+"px";
-	dlg.style["top"]  = roundToPhysicalPixel((window.innerHeight-dlg_height)/2)+"px";
+	dlg.style["left"] = roundToPhysicalPixel((scr_width-dlg_width)/2)+"px";
+	dlg.style["top"]  = roundToPhysicalPixel((scr_height-dlg_height)/2)+"px";
 }
 
 // Center all dialogs whenever the window changed
@@ -8966,12 +8974,181 @@ function centerAllModalDialogs()
 // TODO: merge this with arrangePanels, that is also installed as a "resize"-callback
 window.addEventListener("resize", centerAllModalDialogs);
 
+// Create a modal dialog. Similar to createPanel
+// The description object has the following fields:
+// - title:        text in the title bar
+// - scalesize:    [width, heigth] scaled size of the dialog
+// - minsize:      [width, height] minimum size of the dialog, 
+//                 when the whole viewport is smaller, the viewport size is used
+// - contentstyle: object to add/override some styles to/of the content element
+// - onClose:      callback function() that is called when the dialog is closed by the user
+// - buttons:      list of strings like ["Okay", "Cancel"], each button is connected to
+//                 an eventhandler that is named on<Button>, if it is not available,
+//                 onClose is used instead, if this is not given, there is no button bar
+//                 at the bottom.
+// those properties are carried over to the returned object
+// and the following fields are contained in the returned object:
+// - content:      a DOM element, that represents the content of the dialog
+// - dom:          a DOM element, that represents the whole dialog
+// - button_doms:  dictionary of DOM elements, that represents the buttons in the button bar
+// - and others, mainly the titlebar components
+module.createModal = function(description)
+{
+	let control = Object.assign({}, description);
+	// handle default fields
+	if (! control.hasOwnProperty("onClose")) control.onClose = function() { };
+	
+	// create dialog	
+	let dialog = tgui.createElement({
+		"type": "div",
+		"className": "tgui tgui-modal",
+		"style": {"background": "#eee", "overflow": "hidden", "display": "block", "zIndex": 100},
+	});
+	control.dom = dialog;
+	// TODO remove:
+	let tmp_size = {"width_min": description.minsize[0], "height_min": description.minsize[1],
+					"width_scale": description.scalesize[0], "height_scale": description.scalesize[1]};
+	dialog["tgui_modal_size"] = tmp_size; // used to arrange the dialog properly
+
+	control.handleClose = handleDialogCloseWith(control.onClose);
+	control.titlebar = createTitleBar(dialog, control.title, control.handleClose);
+
+	
+	/*dialog.addEventListener("keydown", function(event)
+	{
+		if (event.key == "Escape")
+		{
+			return control.handleClose(event);
+		}
+	});*/
+	dialog.onKeyDown = function(event)
+	{
+		if (event.key == "Escape")
+		{
+			return control.handleClose(event);
+		}
+	};
+	// create the content div
+	let contentHeight = control.hasOwnProperty("buttons") ? "calc(100% - 63px)" : "calc(100% - 24px)";
+	let contentstyle = {"height": contentHeight};
+	if(control.hasOwnProperty("contentstyle")) Object.assign(contentstyle, control.contentstyle);
+	control.content = tgui.createElement({
+		"type":       "div", 
+		"parent":     dialog,
+		"classname":  "tgui tgui-modal-content",
+		"style":      contentstyle,
+	});
+	
+	
+	
+	if(control.hasOwnProperty("buttons"))
+	{
+		control.div_buttons = tgui.createElement({
+			"parent": control.dom,
+			"type": "div",
+			"classname": "tgui tgui-modal-buttonbar",
+		});
+		control.button_doms = {};
+			
+		for(let i = 0; i < control.buttons.length; ++i)
+		{
+			let buttonName = control.buttons[i];
+			let event_handler = control.onClose;
+			if(control.hasOwnProperty("on"+buttonName))
+				event_handler = control["on"+buttonName];
+				
+			control.button_doms[buttonName] = tgui.createElement({
+				"parent":     control.div_buttons,
+				"type":       "button",
+				"style":      {"width": "100px", "height": "100%", "margin-right": "10px"},
+				"text":       buttonName,
+				"classname":  "tgui-dialog-button",
+				"click":      handleDialogCloseWith(event_handler),
+			});
+		}
+	}
+	
+
+	return control;
+	
+	// --- Local function definitions ---
+
+	// creates an event handler for a dialog, whenever it is going to be closed.
+	// - onClose:  a cleanup callback, use null for no cleanup
+	function handleDialogCloseWith(onClose)
+	{
+		return function(event)
+		{
+			let ret = undefined;
+			if(onClose!=null) ret = onClose();
+			if(event)
+			{
+				event.preventDefault();
+				event.stopPropagation();
+			}
+			if(ret) return false;
+			tgui.stopModal();
+			return false;
+		}
+	}
+
+
+	function createTitleBar(dlg, title, handleClose)
+	{
+		let titlebar = tgui.createElement({
+				"parent": dlg,
+				"type": "div",
+				"style": {"position": "absolute", "width": "100%", "left": "0", "height": "24px", "top": "0"},
+				"classname": "tgui-modal-titlebar",
+			});
+
+		let titlebar_title = tgui.createElement({ // TODO similar to panel titlebars
+				"parent": titlebar,
+				"type": "span",
+				"text": title,
+				"classname": "tgui-modal-titlebar-title",
+				"style": {"height": "20px", "line-height": "20px"},
+			});
+
+		let close = tgui.createButton({
+				"parent": titlebar,
+				"click": function ()
+						{
+							return handleClose(null);
+						},
+				"width": 20,
+				"height": 20,
+				"draw": function(canvas)
+						{
+							let ctx = canvas.getContext("2d");
+							ctx.lineWidth = 2;
+							ctx.strokeStyle = "#000";
+							ctx.beginPath();
+							ctx.moveTo( 4,  4);
+							ctx.lineTo(14, 14);
+							ctx.stroke();
+							ctx.beginPath();
+							ctx.moveTo( 4, 14);
+							ctx.lineTo(14,  4);
+							ctx.stroke();
+						},
+				"classname": "tgui-panel-dockbutton",
+				"tooltip-right": "Close",
+			});
+
+		return titlebar;
+	}
+}
+
+
 // Show a (newly created) element as a modal dialog. Modal dialogs can
 // be stacked. The element should not have been added to a parent yet.
 // It has "fixed" positioning and hence is expected to have been styled
 // with top, left, width, and height.
 module.startModal = function(element)
 {
+	// TODO: disable elements behind the separator.
+	//       - if some elements are focused, it might lead to issues
 	if (modal.length == 0)
 	{
 		// activate the separator
@@ -8984,6 +9161,7 @@ module.startModal = function(element)
 	}
 
 	// add the new modal dialog
+	// TODO: remove following 3 lines
 	element.style.display = "block";
 	element.style.zIndex = 100;
 	element.className += " tgui tgui-modal";
@@ -18404,25 +18582,25 @@ function stackinfo(value, node_id)
 					"text": "[" + value.index + "] ",
 					"classname": "ide-index",
 				});
-				
+
 			let frame_head = tgui.createText(func.petype + " " + TScript.displayname(func), ret.element);
-			
+
 			let inner_element = value.frame.pe[value.frame.pe.length-1];
 			if(inner_element.hasOwnProperty("where"))
 			{
 				// on click, jump to line where the call into the next frame happened
 				let where = inner_element.where;
 				let where_str = " (" + where.line + ":" + where.ch + ")";
-				
+
 				tgui.createElement({"type": "span", "parent": ret.element, "text": " (" + where.line + ":" + where.ch + ")", "classname": "ide-index"});
-		
+
 				ret.element.addEventListener("click", function(event)
 				{
 					setCursorPosition(where.line, where.ch);
 					return false;
 				});
 			}
-			
+
 			if (value.frame.object)
 			{
 				ret.children.push({
@@ -19143,38 +19321,36 @@ let cmd_export = function()
 	if (! title || title === "") title = "tscript-export";
 	let fn = title;
 	if (! fn.endsWith("html") && ! fn.endsWith("HTML") && ! fn.endsWith("htm") && ! fn.endsWith("HTM")) fn += ".html";
-	let dlg = createDialog("export program as webpage", {"width_min": 400, "width_scale": 0.50, "height_min": 260, "height_scale": 0.50});
+
+	let dlg = tgui.createModal({
+		"title":      "Export program as webpage", 
+		"scalesize":  [0.50, 0.50], 
+		"minsize":    [400, 260],
+		"buttons":    ["Close"],
+	});
+	
 	let status = tgui.createElement({
-			"parent": dlg,
+			"parent": dlg.content,
 			"type": "div",
 			"text": "status: preparing ...",
-			"style": {"position": "absolute", "width": "80%", "left": "10%", "height": "40px", "line-height": "35px", "top": "40px", "color": "#000", "padding": "2px 10px", "vertical-align": "middle", "border": "1px solid #000"},
+			"style": {"position": "absolute", "width": "80%", "left": "10%", "height": "40px", "line-height": "35px", "top": "20px", "color": "#000", "padding": "2px 10px", "vertical-align": "middle", "border": "1px solid #000"},
 		});
 	let download_turtle = tgui.createElement({
-			"parent": dlg,
+			"parent": dlg.content,
 			"type": "a",
 			"properties": {"target": "_blank", "download": fn},
 			"text": "download standalone turtle application",
-			"style": {"position": "absolute", "width": "80%", "left": "10%", "height": "40px", "line-height": "35px", "top": "100px", "background": "#fff", "color": "#44c", "font-decoration": "underline", "padding": "2px 10px", "vertical-align": "middle", "border": "1px solid #000", "display": "none"},
+			"style": {"position": "absolute", "width": "80%", "left": "10%", "height": "40px", "line-height": "35px", "top": "80px", "background": "#fff", "color": "#44c", "font-decoration": "underline", "padding": "2px 10px", "vertical-align": "middle", "border": "1px solid #000", "display": "none"},
 		});
 	let download_canvas = tgui.createElement({
-			"parent": dlg,
+			"parent": dlg.content,
 			"type": "a",
 			"properties": {"target": "_blank", "download": fn},
 			"text": "download standalone canvas application",
-			"style": {"position": "absolute", "width": "80%", "left": "10%", "height": "40px", "line-height": "35px", "top": "160px", "background": "#fff", "color": "#44c", "font-decoration": "underline", "padding": "2px 10px", "vertical-align": "middle", "border": "1px solid #000", "display": "none"},
+			"style": {"position": "absolute", "width": "80%", "left": "10%", "height": "40px", "line-height": "35px", "top": "140px", "background": "#fff", "color": "#44c", "font-decoration": "underline", "padding": "2px 10px", "vertical-align": "middle", "border": "1px solid #000", "display": "none"},
 		});
 
-	let close = tgui.createElement({
-			"parent": dlg,
-			"type": "button",
-			"style": {"position": "absolute", "right": "10px", "bottom": "10px", "width": "100px", "height": "25px"},
-			"text": "Close",
-			"classname": "tgui-dialog-button"
-		});
-	close.addEventListener("click", handleDialogCloseWith(null));
-
-	tgui.startModal(dlg);
+	tgui.startModal(dlg.dom);
 
 	// escape the TScript source code; prepare it to reside inside a single-quoted string
 	source = source.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/'/g, "\\'");
@@ -19249,7 +19425,7 @@ let cmd_new = function()
 
 	clear();
 
-	module.editor_title.innerHTML = "editor";
+	module.editor_title.innerHTML = "Editor";
 	module.document.filename = "";
 	module.sourcecode.setValue("");
 	module.sourcecode.getDoc().clearHistory();
@@ -19266,11 +19442,11 @@ let cmd_load = function()
 		if (! confirm("The document has unsaved changes.\nDo you want to discard the code?")) return;
 	}
 
-	let dlg = fileDlg("load file", module.document.filename, false, function(filename)
+	let dlg = fileDlg("Load file", module.document.filename, false, function(filename)
 			{
 				clear();
 
-				module.editor_title.innerHTML = "editor &mdash; ";
+				module.editor_title.innerHTML = "Editor &mdash; ";
 				tgui.createText(filename, module.editor_title);
 				module.document.filename = filename;
 				module.sourcecode.setValue(localStorage.getItem("tscript.code." + filename));
@@ -19297,9 +19473,9 @@ let cmd_save = function()
 
 let cmd_save_as = function()
 {
-	let dlg = fileDlg("save file as ...", module.document.filename, true, function(filename)
+	let dlg = fileDlg("Save file as ...", module.document.filename, true, function(filename)
 			{
-				module.editor_title.innerHTML = "editor &mdash; ";
+				module.editor_title.innerHTML = "Editor &mdash; ";
 				tgui.createText(filename, module.editor_title);
 				module.document.filename = filename;
 				cmd_save();
@@ -19408,7 +19584,7 @@ function draw_icon_pencil_overlay(ctx)
 	ctx.beginPath();
 	ctx.arc(18, 16, 1, 0, 2*Math.PI, false);
 	ctx.fill();
-	
+
 }
 
 
@@ -19441,7 +19617,7 @@ let buttons = [
 						ctx.lineTo(17, 14);
 						ctx.stroke();
 					},
-			"tooltip": "new document",
+			"tooltip": "New document",
 			"hotkey": "shift-control-n",
 		},
 		{
@@ -19476,7 +19652,7 @@ let buttons = [
 						ctx.fill();
 						ctx.stroke();
 					},
-			"tooltip": "open document",
+			"tooltip": "Open document",
 			"hotkey": "control-o",
 		},
 		{
@@ -19487,7 +19663,7 @@ let buttons = [
 
 						draw_icon_floppy_disk(ctx);
 					},
-			"tooltip": "save document",
+			"tooltip": "Save document",
 			"hotkey": "control-s",
 		},
 		{
@@ -19499,7 +19675,7 @@ let buttons = [
 						draw_icon_floppy_disk(ctx);
 						draw_icon_pencil_overlay(ctx);
 					},
-			"tooltip": "save document as ...",
+			"tooltip": "Save document as ...",
 			"hotkey": "shift-control-s",
 		},
 		{
@@ -19514,7 +19690,7 @@ let buttons = [
 						ctx.lineTo(5, 15);
 						ctx.fill();
 					},
-			"tooltip": "run/continue program",
+			"tooltip": "Run/continue program",
 			"hotkey": "F7",
 		},
 		{
@@ -19526,7 +19702,7 @@ let buttons = [
 						ctx.fillRect(5, 5, 4, 10);
 						ctx.fillRect(11, 5, 4, 10);
 					},
-			"tooltip": "interrupt program",
+			"tooltip": "Interrupt program",
 			"hotkey": "shift-F7",
 		},
 		{
@@ -19537,7 +19713,7 @@ let buttons = [
 						ctx.fillStyle = "#c00";
 						ctx.fillRect(5, 5, 10, 10);
 					},
-			"tooltip": "abort program",
+			"tooltip": "Abort program",
 			"hotkey": "F10",
 		},
 		{
@@ -19566,7 +19742,7 @@ let buttons = [
 						ctx.lineTo(9.5, 10);
 						ctx.fill();
 					},
-			"tooltip": "run current command, step into function calls",
+			"tooltip": "Run current command, step into function calls",
 			"hotkey": "shift-control-F11",
 		},
 		{
@@ -19595,7 +19771,7 @@ let buttons = [
 						ctx.lineTo(9.5, 16);
 						ctx.fill();
 					},
-			"tooltip": "run current line of code, do no step into function calls",
+			"tooltip": "Run current line of code, do no step into function calls",
 			"hotkey": "control-F11",
 		},
 		{
@@ -19624,7 +19800,7 @@ let buttons = [
 						ctx.lineTo(9.5, 16);
 						ctx.fill();
 					},
-			"tooltip": "step out of current function",
+			"tooltip": "Step out of current function",
 			"hotkey": "shift-F11",
 		},
 		{
@@ -19636,7 +19812,7 @@ let buttons = [
 						ctx.arc(10, 10, 3.9, 0, 2 * Math.PI, false);
 						ctx.fill();
 					},
-			"tooltip": "toggle breakpoint",
+			"tooltip": "Toggle breakpoint",
 			"hotkey": "F8",
 		},
 		/*{
@@ -19689,112 +19865,21 @@ function saveConfig()
 	localStorage.setItem("tscript.ide.config", JSON.stringify(config));
 }
 
-
-// TODO move to tgui.js
-// creates an event handler for a dialog, whenever it is going to be closed.
-// * onClose - a cleanup callback, use null for no cleanup
-function handleDialogCloseWith(onClose)
-{
-	return function(event)
-	{
-		if(onClose!=null) onClose();
-		tgui.stopModal();
-		if(event)
-		{
-			event.preventDefault();
-			event.stopPropagation();
-		}
-		return false;
-	}
-}
-
-// TODO move to tgui.js
-function createTitleBar(dlg, title, onClose)
-{
-	let titlebar = tgui.createElement({
-			"parent": dlg,
-			"type": "div",
-			"style": {"position": "absolute", "width": "100%", "left": "0", "height": "24px", "top": "0"},
-			"classname": "tgui-modal-titlebar",
-		});
-		
-	let titlebar_title = tgui.createElement({ // TODO similar to panel titlebars
-			"parent": titlebar,
-			"type": "span",
-			"text": title,
-			"classname": "tgui-modal-titlebar-title",
-			"style": {"height": "20px", "line-height": "20px"},
-		});
-		
-	let close = tgui.createButton({
-			"parent": titlebar,
-			"click": function ()
-					{
-						return handleDialogCloseWith(onClose)(null);
-					},
-			"width": 20,
-			"height": 20,
-			"draw": function(canvas)
-					{
-						let ctx = canvas.getContext("2d");
-						ctx.lineWidth = 2;
-						ctx.strokeStyle = "#000";
-						ctx.beginPath();
-						ctx.moveTo( 4,  4);
-						ctx.lineTo(14, 14);
-						ctx.stroke();
-						ctx.beginPath();
-						ctx.moveTo( 4, 14);
-						ctx.lineTo(14,  4);
-						ctx.stroke();
-					},
-			"classname": "tgui-panel-dockbutton",
-			"tooltip-right": "close",
-		});
-		
-	return titlebar;
-}
-
-// TODO move to tgui.js
-function createDialog(title, size, onClose)
-{
-	/*let dlg_width        = size["width_min"];
-	let dlg_width_scale  = size["width_scale"];
-	let dlg_height       = size["height_min"];
-	let dlg_height_scale = size["height_scale"];
-	
-	let width_css  = "calc(max(" + dlg_width  + "px, " + 100*dlg_width_scale  + "vw))";
-	let height_css = "calc(max(" + dlg_height + "px, " + 100*dlg_height_scale + "vh))";*/
-	
-	let dlg = tgui.createElement({
-			"type": "div",
-			"style": {"background": "#eee", "overflow": "hidden"},
-		});
-	dlg["tgui_modal_size"] = size; // used to arrange the dialog properly
-		
-	let titlebar = createTitleBar(dlg, title, onClose);
-
-	dlg.onKeyDown = function(event)
-		{
-			if (event.key == "Escape")
-			{
-				return handleDialogCloseWith(onClose)(event);
-			}
-		};
-
-	return dlg;
-}
-
 function configDlg()
 {
-	let dlg = createDialog("configuration", {"width_min": 370, "width_scale": 0.50, "height_min": 270, "height_scale": 0.50}, saveConfig);
-	let content = tgui.createElement({
-			"parent": dlg,
-			"type": "div",
-			"html": "<h3 style=\"margin-top: 20px;\">Configure Hotkeys</h3><p>Click a button to configure its hotkey.</p>",
-		});
+	let dlg = tgui.createModal({
+		"title":      "Configuration", 
+		"scalesize":  [0.50, 0.50], 
+		"minsize":    [370, 270],
+		"onClose":    saveConfig,
+		"buttons":    ["Close"],
+	});
+	let div_hotkey = tgui.createElement({parent: dlg.content, type: "div"});
+	let h3_hotkey = tgui.createElement({parent: div_hotkey, type: "h3", text: "Configure Hotkeys"});
+	let p_hotkey = tgui.createElement({parent: div_hotkey, type: "p", text: "Click a button to configure its hotkey."});
+	
 	let dlg_buttons = [];
-	let div = tgui.createElement({parent: dlg, type: "div"});
+	let div_buttons = tgui.createElement({parent: div_hotkey, type: "div", "classname": "ide-toolbar"});
 	for (let i=0; i<buttons.length; i++)
 	{
 		let description = Object.assign({}, buttons[i]);
@@ -19803,38 +19888,44 @@ function configDlg()
 		description.style = {"height": "22px"};
 		if (description.hotkey) description.tooltip += " (" + description.hotkey + ")";
 		delete description.hotkey;
-		description.parent = div;
+		description.parent = div_buttons;
 		{
 			let btn = i;
 			description.click = function()
 					{
-						let dlg = createDialog("set hotkey", {"width_min": 340, "width_scale": 0.30, "height_min": 220, "height_scale": 0.30});
+						let dlg = tgui.createModal({
+							"title":      "Set hotkey", 
+							"scalesize":  [0.30, 0.30], 
+							"minsize":    [340, 220],
+							"onClose":    saveConfig,
+							"buttons":    ["Cancel"],
+						});
 						let icon = tgui.createCanvasIcon({
-							"parent": dlg, 
-							"width": 20, "height": 20, 
-							"draw": buttons[btn].draw, 
-							"style": {"position": "absolute", "left": "15px", "top": "40px"}
+							"parent": dlg.content,
+							"width": 20, "height": 20,
+							"draw": buttons[btn].draw,
+							"style": {"position": "absolute", "left": "15px", "top": "16px"}
 						});
-						
+
 						tgui.createElement({
-							parent: dlg, 
-							type: "label", 
-							"text":buttons[btn].tooltip, 
-							"style":{"position": "absolute", "left": "50px", "top": "40px"}
-						});
-						tgui.createElement({
-							parent: dlg, 
-							type: "label", 
-							"text": "current hotkey: " + (buttons[btn].hotkey ? buttons[btn].hotkey : "<None>"),
-							"style":{"position": "absolute", "left": "50px", "top": "70px"}
+							parent: dlg.content,
+							type: "label",
+							"text":buttons[btn].tooltip,
+							"style":{"position": "absolute", "left": "50px", "top": "16px", "right": "15px"}
 						});
 						tgui.createElement({
-							parent: dlg, 
-							type: "label", 
-							"text":"press the hotkey to assign, or press escape to remove the current hotkey", 
-							"style":{"position": "absolute", "left": "15px", "top": "130px"}
+							parent: dlg.content,
+							type: "label",
+							"text": "Current hotkey: " + (buttons[btn].hotkey ? buttons[btn].hotkey : "<None>"),
+							"style":{"position": "absolute", "left": "50px", "top": "46px", "right": "15px"}
 						});
-						dlg.onKeyDown = function(event)
+						tgui.createElement({
+							parent: dlg.content,
+							type: "label",
+							"text":"Press the hotkey to assign, or press escape to remove the current hotkey",
+							"style":{"position": "absolute", "left": "15px", "top": "106px", "right": "15px"}
+						});
+						dlg.dom.onKeyDown = function(event)
 								{
 									event.preventDefault();
 									event.stopPropagation();
@@ -19873,16 +19964,8 @@ function configDlg()
 									}
 									return false;
 								};
-							
-						let cancel = tgui.createElement({
-								"parent": dlg,
-								"type": "button",
-								"style": {"position": "absolute", "right": "10px", "bottom": "10px", "width": "100px", "height": "25px"},
-								"text": "Cancel",
-								"classname": "tgui-dialog-button"
-							});
-						cancel.addEventListener("click", handleDialogCloseWith(saveConfig));
-						tgui.startModal(dlg);
+								
+						tgui.startModal(dlg.dom);
 					};
 		}
 		dlg_buttons.push(tgui.createButton(description));
@@ -19890,26 +19973,17 @@ function configDlg()
 
 	let checked = "";
 
-	div = tgui.createElement({parent: dlg, type: "div"});
-	let h3 = tgui.createElement({parent: div, type: "h3", style: {"margin-top": "20px"}, text: "Coding Style"});
-	let p = tgui.createElement({parent: div, type: "p"});
-	let lbl = tgui.createElement({parent: p, type: "label", "html":" enable style errors "});
+	let div_codingStyle = tgui.createElement({parent: dlg.content, type: "div"});
+	let h3_codingStyle = tgui.createElement({parent: div_codingStyle, type: "h3", style: {"margin-top": "20px"}, text: "Coding Style"});
+	let p_codingStyle = tgui.createElement({parent: div_codingStyle, type: "p"});
+	let lbl = tgui.createElement({parent: p_codingStyle, type: "label", "html":" Enable style errors "});
 	let checkbox = tgui.createElement({parent: lbl, type: "input", properties: {type: "checkbox"},
 				click: function(event)
 				{ TScript.options.checkstyle = checkbox.checked; },
 			});
 	if (TScript.options.checkstyle) checkbox.checked = true;
 
-	let close = tgui.createElement({
-			"parent": dlg,
-			"type": "button",
-			"style": {"position": "absolute", "right": "10px", "bottom": "10px", "width": "100px", "height": "25px"},
-			"text": "Close",
-			"classname": "tgui-dialog-button"
-		});
-	close.addEventListener("click", handleDialogCloseWith(saveConfig));
-
-	tgui.startModal(dlg);
+	tgui.startModal(dlg.dom);
 }
 
 function fileDlg(title, filename, allowNewFilename, onOkay)
@@ -19925,94 +19999,104 @@ function fileDlg(title, filename, allowNewFilename, onOkay)
 	files.sort();
 
 	// create controls
-	let dlg = createDialog(title, {"width_min": 440, "width_scale": 0.50, "height_min": 260, "height_scale": 0.70});
-	let dlgContent = tgui.createElement({
-		"parent": dlg,
-		"type": "div",
-		"classname": "tgui-modal-content",
-		"style": {"display": "flex", "flex-direction": "column", "justify-content": "space-between"}
+	let doFileConfirmation = function()
+	{
+		let fn = name.value;
+		if (fn != "")
+		{
+			if (allowNewFilename || files.indexOf(fn) >= 0)
+			{
+				onOkay(fn);
+				return;
+			}
+		}
+		return true; // do not close dialog
+	};
+	
+	let dlg = tgui.createModal({
+		"title":        title, 
+		"scalesize":    [0.50, 0.70], 
+		"minsize":      [440, 260],
+		"onOkay":       doFileConfirmation,
+		"buttons":      ["Okay", "Cancel"],
+		"contentstyle": {"display": "flex", "flex-direction": "column", "justify-content": "space-between"}
 	});
-	
+
 	let toolbar = tgui.createElement({
-			"parent": dlgContent,
+			"parent": dlg.content,
 			"type": "div",
-			"style": {"width": "100%", "height": "25px", "margin-top": "7px"},
+			"style": {
+				"display": "flex", "flex-direction": "row", "justify-content": "space-between", 
+				"width": "100%", "height": "25px", "margin-top": "7px"
+			},
 		});
-	// Toolbar contents
-	let deleteBtn = tgui.createElement({
-			"parent": toolbar,
-			"type": "button",
-			"style": {"width": "100px", "height": "100%", "margin-left": "10px"},
-			"text": "Delete file",
-			"click": () => deleteFile(name.value),
-			"classname": "tgui-dialog-button"
-		});
+	// toolbar
+	{
+		let deleteBtn = tgui.createElement({
+				"parent": toolbar,
+				"type": "button",
+				"style": {"width": "100px", "height": "100%", "margin-right": "10px"},
+				"text": "Delete file",
+				"click": () => deleteFile(name.value),
+				"classname": "tgui-dialog-button"
+			});
 
-	let exportBtn = tgui.createElement({
-			"parent": toolbar,
-			"type": "button",
-			"style": {"width": "100px", "height": "100%", "margin-left": "10px"},
-			"text": "Export",
-			"click": () => exportFile(name.value),
-			"classname": "tgui-dialog-button"
-		});
-	
-	let importBtn = tgui.createElement({
-			"parent": toolbar,
-			"type": "button",
-			"style": {"width": "100px", "height": "100%", "margin-left": "10px"},
-			"text": "Import",
-			"click": () => importFile(),
-			"classname": "tgui-dialog-button"
-		});
+		let importBtn = tgui.createElement({
+				"parent": toolbar,
+				"type": "button",
+				"style": {"width": "100px", "height": "100%", "margin-right": "10px"},
+				"text": "Import",
+				"click": () => importFile(),
+				"classname": "tgui-dialog-button"
+			});
 
-	let status = tgui.createElement({
-			"parent": toolbar,
-			"type": "label",
-			"style": {"width": "100px", "height": "100%", "margin-left": "10px"},
-			"text": (files.length > 0 ? files.length : "No") + " document"+(files.length == 1?"":"s"),
-			"classname": "tgui-status-box"
-		});
-	// end Toolbar contents
-	
+		let exportBtn = tgui.createElement({
+				"parent": toolbar,
+				"type": "button",
+				"style": {"width": "100px", "height": "100%", "margin-right": "10px"},
+				"text": "Export",
+				"click": () => exportFile(name.value),
+				"classname": "tgui-dialog-button"
+			});
+
+		// allow multiple selection: export selected
+		// TODO: allow to export all TScript files at once to a zip file
+		// TODO: allow to export whole TScript local storage
+
+		let status = tgui.createElement({
+				"parent": toolbar,
+				"type": "label",
+				"style": {
+					"flex": 1,
+					"height": "100%",
+					"white-space": "nowrap",
+				},
+				"text": (files.length > 0 ? files.length : "No") + " document"+(files.length == 1?"":"s"),
+				"classname": "tgui-status-box",
+			});
+	}
+	// end toolbar
+
 	let list = tgui.createElement({
-			"parent": dlgContent,
-			"type": files.length > 0 ? "select" : "text",
-			"properties": {"size": Math.max(2, files.length)},
+			"parent": dlg.content,
+			"type": "select",
+			"properties": {"size": Math.max(2, files.length), "multiple": false},
 			"classname": "tgui-list-box",
-			"style": {"flex": "auto", "background": "#fff", "margin": "7px 10px", "overflow": "scroll"}
+			"style": {"flex": "auto", "background": "#fff", "margin": "7px 0px", "overflow": "scroll"}
 		});
 	let name = {value: filename};
 	if (allowNewFilename)
 	{
 		name = tgui.createElement({
-				"parent": dlgContent,
+				"parent": dlg.content,
 				"type": "input",
-				"style": {"height": "25px", "background": "#fff", "margin": "0 10px 7px 10px"},
+				"style": {"height": "25px", "background": "#fff", "margin": "0 0px 7px 0px"},
 				"classname": "tgui-text-box",
 				"text": filename,
 				"properties": {type:"text", placeholder:"Filename"}
 			});
 	}
-	let buttons = tgui.createElement({
-			"parent": dlgContent,
-			"type": "div",
-			"style": {"width": "100%", "height": "25px", "margin-bottom": "7px", "display": "flex", "justify-content": "flex-end"},
-		});
-	let okay = tgui.createElement({
-			"parent": buttons,
-			"type": "button",
-			"style": {"width": "100px", "height": "100%", "margin-right": "10px"},
-			"text": "Okay",
-			"classname": "tgui-dialog-button"
-		});
-	let cancel = tgui.createElement({
-			"parent": buttons,
-			"type": "button",
-			"style": {"width": "100px", "height": "100%", "margin-right": "10px"},
-			"text": "Cancel",
-			"classname": "tgui-dialog-button"
-		});
+	
 	// populate options
 	for (let i=0; i<files.length; i++)
 	{
@@ -20035,35 +20119,19 @@ function fileDlg(title, filename, allowNewFilename, onOkay)
 					return false;
 				}
 			})
-	let handleFileConfirmation = function(event)
-			{
-				event.preventDefault();
-				event.stopPropagation();
-				let fn = name.value;
-				if (fn != "")
-				{
-					if (allowNewFilename || files.indexOf(fn) >= 0)
-					{
-						tgui.stopModal();
-						onOkay(fn);
-					}
-				}
-				return false;
-			};
-	list.addEventListener("dblclick", handleFileConfirmation);
-	okay.addEventListener("click", handleFileConfirmation);
-	cancel.addEventListener("click", handleDialogCloseWith(null));
+	list.addEventListener("dblclick", function(event)
+	{
+		event.preventDefault();
+		event.stopPropagation();
+		if(doFileConfirmation()) return false;
+		tgui.stopModal();
+		return false;
+	});
 
-	dlg.onKeyDown = function(event)
+	let oldKeyDown = dlg.dom.onKeyDown;
+	dlg.dom.addEventListener("keydown", function(event)
 			{
-				if (event.key === "Escape")
-				{
-					tgui.stopModal();
-					event.preventDefault();
-					event.stopPropagation();
-					return false;
-				}
-				else if (event.key === "Enter")
+				if (event.key === "Enter")
 				{
 					event.preventDefault();
 					event.stopPropagation();
@@ -20078,9 +20146,9 @@ function fileDlg(title, filename, allowNewFilename, onOkay)
 					}
 					return false;
 				}
-			};
+			});
 
-	tgui.startModal(dlg);
+	tgui.startModal(dlg.dom);
 	(allowNewFilename ? name : list).focus();
 	return dlg;
 
@@ -20190,7 +20258,7 @@ module.create = function(container, options)
 							ctx.closePath();
 							ctx.stroke();
 						},
-				"tooltip": "export program as webpage",
+				"tooltip": "Export program as webpage",
 			},
 		);
 	}
@@ -20250,7 +20318,7 @@ module.create = function(container, options)
 					},
 			"parent": module.toolbar,
 			"style": {"float": "left"},
-			"tooltip": "configuration",
+			"tooltip": "Configuration",
 		});
 
 	tgui.createElement({
@@ -20270,7 +20338,7 @@ module.create = function(container, options)
 					"overflow": "hidden",
 					"direction": "rtl",
 					"text-overflow": "ellipsis clip",
-					
+
 					"text-align": "center",
 					"background": "#fff"
 					}
@@ -20296,7 +20364,7 @@ module.create = function(container, options)
 						for (let i=0; i<tgui.panels.length; i++)
 						{
 							let p = tgui.panels[i];
-							if (p.title === "editor" || p.title === "messages")
+							if (p.name === "editor" || p.name === "messages")
 								p.dock("left");
 							else
 								p.dock("right");
@@ -20312,26 +20380,26 @@ module.create = function(container, options)
 						ctx.lineWidth = 1;
 						ctx.fillStyle = "#fff";
 						ctx.strokeStyle = "#aaa";
-						
+
 						ctx.beginPath();
 						ctx.rect(2.5, 2.5, 15, 15);
 						ctx.fill();
 						ctx.stroke();
-						
+
 						ctx.fillStyle = "#ccc";
 						ctx.fillRect(11, 3, 1, 14);
-						
+
 						ctx.fillStyle = "#77f";
 						ctx.fillRect(3, 3, 14, 1);
 						ctx.fillRect(3, 12, 8, 1);
-						
-						
+
+
 						ctx.strokeStyle = "#222";
 						ctx.lineWidth = 1.7;
 						ctx.beginPath();
 						ctx.arc( 9.5, 10.5, 4, 1.25*Math.PI, 2.6*Math.PI);
 						ctx.stroke();
-						
+
 						ctx.fillStyle = "#222";
 						ctx.beginPath();
 						ctx.moveTo( 5,  5);
@@ -20341,7 +20409,7 @@ module.create = function(container, options)
 					},
 			"parent": module.toolbar,
 			"style": {"float": "left"},
-			"tooltip": "restore panels",
+			"tooltip": "Restore panels",
 		});
 
 	tgui.createElement({
@@ -20373,17 +20441,15 @@ module.create = function(container, options)
 	{
 		tgui.createButton({
 				"click": () => showdoc(),
-				"text": "documentation",
+				"text": "Documentation",
 				"parent": module.toolbar,
 				"style": {"position": "absolute", "height": "22px", "right": "0px"},
 			});
-			
-		
-		// pressing F1 
+
+
+		// pressing F1
 		tgui.setHotkey("F1", function()
-			{
-				let dlg = createDialog("open documentation", {"width_min": 300, "width_scale": 0.20, "height_min": 150, "height_scale": 0.15});
-				
+			{				
 				let selection = module.sourcecode.getSelection();
 				// maximum limit of 30 characters
 				// so that there is no problem, when accedentially everything
@@ -20392,7 +20458,7 @@ module.create = function(container, options)
 				{
 					// get current word under the cursor
 					let cursor = module.sourcecode.getCursor();
-					
+
 					let word = module.sourcecode.findWordAt(cursor);
 
 					selection = module.sourcecode.getRange(word.anchor, word.head);
@@ -20400,57 +20466,38 @@ module.create = function(container, options)
 				selection = selection.substr(0, 30);
 				let words = selection.match(/[a-z]+/gi); // global case insensitive
 				let href = "";
-				
+
 				if(words)
 				{
 					href = "#search/"+words.join("/");
 				}
-					
+
+				let dlg = tgui.createModal({
+					"title":      "Open documentation", 
+					"scalesize":  [0.20, 0.15], 
+					"minsize":    [300, 150],
+					"onOkay":     () => showdoc(href),
+					"buttons":    ["Okay", "Cancel"],
+				});
 				tgui.createElement({
-					"parent": dlg,
+					"parent": dlg.content,
 					"type": "div",
-					"style": {"margin-top": "20px"},
+					"style": {"margin-top": "10px"},
 					"text": "Open the documentation in another tab?",
 				});
-					
+
 				if(words)
 				{
 					tgui.createElement({
-						"parent": dlg,
+						"parent": dlg.content,
 						"type": "div",
 						"style": {"margin-top": "10px"},
 						"text": "Search for \"" + words.join(" ") + "\"?",
 					});
 				}
-				
-				let okay = tgui.createElement({
-						"parent": dlg,
-						"type": "button",
-						"style": {"position": "absolute", "right": "120px", "bottom": "10px", "width": "100px", "height": "25px"},
-						"text": "Okay",
-						"classname": "tgui-dialog-button"
-					});
-				okay.addEventListener("click", (event) => 
-					{
-						tgui.stopModal();
-						event.preventDefault();
-						event.stopPropagation();
-						showdoc(href)
-						return false;
-					});
-					
-				let cancel = tgui.createElement({
-						"parent": dlg,
-						"type": "button",
-						"style": {"position": "absolute", "right": "10px", "bottom": "10px", "width": "100px", "height": "25px"},
-						"text": "Cancel",
-						"classname": "tgui-dialog-button"
-					});
-				cancel.addEventListener("click", handleDialogCloseWith(null));
-						
-				tgui.startModal(dlg);
-				
-				okay.focus();
+
+				tgui.startModal(dlg.dom);
+				dlg.button_doms["Okay"].focus();
 			});
 	}
 
@@ -20461,7 +20508,8 @@ module.create = function(container, options)
 	tgui.preparePanels(area, module.iconlist);
 
 	let panel_editor = tgui.createPanel({
-			"title": "editor",
+			"name": "editor",
+			"title": "Editor",
 			"state": "left",
 			"fallbackState": "float",
 			"dockedheight": 600,
@@ -20529,10 +20577,12 @@ module.create = function(container, options)
 					cm.setGutterMarker(line, "breakpoints", cm.lineInfo(line).gutterMarkers ? null : makeMarker());
 				}
 			});
-	module.editor_title = panel_editor.titlebar;
+	module.editor_title = panel_editor.titlebar; // TODO: remove this, this is only used to update the title
+												 //       - add functionality to update title in tgui.js
 
 	let panel_messages = tgui.createPanel({
-			"title": "messages",
+			"name": "messages",
+			"title": "Messages",
 			"state": "left",
 			"dockedheight": 200,
 			"icondraw": function(canvas)
@@ -20560,7 +20610,8 @@ module.create = function(container, options)
 
 	// prepare stack tree control
 	let panel_stackview = tgui.createPanel({
-			"title": "stack",
+			"name": "stack",
+			"title": "Stack",
 			"state": "icon",
 			"fallbackState": "right",
 			"icondraw": function(canvas)
@@ -20587,7 +20638,7 @@ module.create = function(container, options)
 						ctx.lineTo(10, 17.5);
 						ctx.lineTo(10,  8.5);
 						ctx.fill();
-						
+
 						ctx.fillStyle = "#999";
 						ctx.beginPath();
 						ctx.moveTo(10, 17.5);
@@ -20622,13 +20673,14 @@ module.create = function(container, options)
 
 	// prepare program tree control
 	let panel_programview = tgui.createPanel({
-			"title": "program",
+			"name": "program",
+			"title": "Program",
 			"state": "icon",
 			"fallbackState": "right",
 			"icondraw": function(canvas)
 					{
 						let ctx = canvas.getContext("2d");
-						
+
 						// Outline
 						ctx.fillStyle = "#eeeeeec0";
 						ctx.moveTo( 3,  2);
@@ -20652,7 +20704,7 @@ module.create = function(container, options)
 						ctx.lineTo( 5,  6);
 						ctx.lineTo( 3,  6);
 						ctx.fill();
-						
+
 						// Black boxes
 						ctx.fillStyle = "#000";
 						ctx.fillRect(4,  3,  8, 2);
@@ -20675,7 +20727,8 @@ module.create = function(container, options)
 
 	// prepare turtle output panel
 	let panel_turtle = tgui.createPanel({
-			"title": "turtle",
+			"name": "turtle",
+			"title": "Turtle",
 			"state": "right",
 			"fallbackState": "float",
 			"icondraw": function(canvas)
@@ -20780,7 +20833,8 @@ module.create = function(container, options)
 
 	// prepare canvas output panel
 	let panel_canvas = tgui.createPanel({
-			"title": "canvas",
+			"name": "canvas",
+			"title": "Canvas",
 			"state": "icon",
 			"fallbackState": "right",
 			"onResize": function(w, h)

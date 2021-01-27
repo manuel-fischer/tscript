@@ -273,7 +273,7 @@
 	color: #000;
 	font-family: sans-serif;
 	font-size: 10pt;
-	padding: 10px;
+	/*padding: 10px;*/
 	border: 5px solid #888;
 	overflow-y: scroll;
 }
@@ -298,6 +298,7 @@
 	font-family: sans-serif;
 	vertical-align: middle;
 	width: auto;
+	overflow: hidden;
 	
 	/*background: #f00; /**/
 }
@@ -305,12 +306,27 @@
 .tgui-modal-content
 {
 	position: absolute;
+	overflow: auto;
+	padding: 0px 10px;
 	left: 0;
 	top: 24px;
 	width: 100%;
-	height: calc(100% - 24px)
+	/*height: calc(100% - 24px);*/
+	
+	/*background: #f00; /**/
 }
 
+.tgui-modal-buttonbar
+{
+	position: absolute;
+	box-shadow: inset 0px  2px 3px -1px #00000040;
+	/*background: #0000ff60; /**/
+	background: #e5e5e5;
+	width: 100%; height: 39px;
+	padding: 7px 0px;
+	bottom: 0px; 
+	display: flex; justify-content: flex-end;
+}
 
 
 

@@ -396,7 +396,7 @@ module.createTreeControl = function(description)
 			td1.appendChild(state.toggle);
 			td2.appendChild(state.element);
 
-			state.element.id = "tgui.id." + (Math.random() + 1);
+			state.element.id = "tgui.id." + (Math.random() + 1); // TODO: bad code
 			state.element.className = "tgui tgui-tree-element";
 
 			// initialize the toggle button
@@ -533,13 +533,13 @@ module.panelcontainer = null;
 module.iconcontainer = null;
 
 // load panel arrangement data from local storage
-function loadPanelData(panel_id)
+function loadPanelData(panel_name)
 {
 	let str = localStorage.getItem("tgui.panels");
 	if (str)
 	{
 		let paneldata = JSON.parse(str);
-		if (paneldata.hasOwnProperty(panel_id)) return paneldata[panel_id];
+		if (paneldata.hasOwnProperty(panel_name)) return paneldata[panel_name];
 	}
 	return null;
 }
@@ -559,7 +559,7 @@ module.savePanelData = function()
 		d.floatingpos = p.floatingpos;
 		d.floatingsize = p.floatingsize;
 		d.dockedheight = p.dockedheight;
-		paneldata[p.id] = d;
+		paneldata[p.name] = d;
 	}
 	localStorage.setItem("tgui.panels", JSON.stringify(paneldata));
 }
@@ -718,20 +718,25 @@ window.setTimeout(poll, 1000);   // start with a short delay
 
 // Create a panel.
 // The description object has the following fields:
-// id: a string that identifies the window, used to restore window positions
-// title: text in the title bar
-// floatingpos: [left, top] floating position
-// floatingsize: [width, height] size in floating state
-// dockedheight: height in left or right state
-// state: current state, i.e., "left", "right", "max", "float", "icon", "disabled"
-// icondraw: draw function for the icon representing the panel in "icon" mode
-// onResize: callback function(width, height) on resize
-// onArrange: callback function() on arranging (possible position/size change)
+// - name:         a string that identifies the window, used to restore window positions
+// - title:        text in the title bar
+// - floatingpos:  [left, top] floating position
+// - floatingsize: [width, height] size in floating state
+// - dockedheight: height in left or right state
+// - state:        current state, i.e., "left", "right", "max", "float", "icon", "disabled"
+// - icondraw:     draw function for the icon representing the panel in "icon" mode, also drawn in the titlebar of the panel
+// - onResize:     callback function(width, height) on resize
+// - onArrange:    callback function() on arranging (possible position/size change)
+// those properties are carried over to the returned object
+// and the following fields are contained in the returned object:
+// - content:      a DOM element, that represents the content of the panel
+// - dom:          a DOM element, that represents the whole panel
+// - and others, mainly the titlebar components
 let free_panel_id = 1;
 module.createPanel = function(description)
 {
 	// load state from local storage if possible
-	let stored = loadPanelData(description.id);
+	let stored = loadPanelData(description.name);
 	if (stored)
 	{
 		// load position and size
@@ -758,7 +763,7 @@ module.createPanel = function(description)
 
 	// create the main objects
 	let control = Object.assign({}, description);
-	control.state = "disabled";
+	control.state = "disabled"; // Later overwritten by a call to control.dock
 	let panel = tgui.createElement({"type": "div", "classname": "tgui-panel-container"});
 	control.dom = panel;
 	control.panelID = free_panel_id;
@@ -929,7 +934,11 @@ module.createPanel = function(description)
 			});
 
 	// create the content div
-	control.content = tgui.createElement({"type": "div", parent: panel, "classname": "tgui tgui-panel-content"});
+	control.content = tgui.createElement({
+		"type":       "div", 
+		"parent":     panel, 
+		"classname":  "tgui tgui-panel-content"
+	});
 
 	// create the icon
 	control.icon = tgui.createButton({
@@ -1161,15 +1170,13 @@ function roundToPhysicalPixel(virtual_px)
 function centerModalDialog(dlg)
 {
 	let dlg_width, dlg_height;
+	let scr_width = window.innerWidth, scr_height = window.innerHeight;
 	if(dlg.hasOwnProperty("tgui_modal_size"))
 	{
 		let size = dlg["tgui_modal_size"];
 		
-		dlg_width = roundToPhysicalPixel(Math.max(size["width_min"], size["width_scale"]*window.innerWidth));
-		dlg_height = roundToPhysicalPixel(Math.max(size["height_min"], size["height_scale"]*window.innerHeight));
-		console.log(dlg_width);
-		console.log(dlg_height);
-		console.log(size["width_min"]);
+		dlg_width = roundToPhysicalPixel(Math.min(Math.max(size["width_min"], size["width_scale"]*scr_width), scr_width));
+		dlg_height = roundToPhysicalPixel(Math.min(Math.max(size["height_min"], size["height_scale"]*scr_height), scr_height));
 		
 		dlg.style["width"] = dlg_width+"px";
 		dlg.style["height"] = dlg_height+"px";
@@ -1180,8 +1187,8 @@ function centerModalDialog(dlg)
 		dlg_width = rect.width;
 		dlg_height = rect.height;
 	}
-	dlg.style["left"] = roundToPhysicalPixel((window.innerWidth-dlg_width)/2)+"px";
-	dlg.style["top"]  = roundToPhysicalPixel((window.innerHeight-dlg_height)/2)+"px";
+	dlg.style["left"] = roundToPhysicalPixel((scr_width-dlg_width)/2)+"px";
+	dlg.style["top"]  = roundToPhysicalPixel((scr_height-dlg_height)/2)+"px";
 }
 
 // Center all dialogs whenever the window changed
@@ -1193,12 +1200,181 @@ function centerAllModalDialogs()
 // TODO: merge this with arrangePanels, that is also installed as a "resize"-callback
 window.addEventListener("resize", centerAllModalDialogs);
 
+// Create a modal dialog. Similar to createPanel
+// The description object has the following fields:
+// - title:        text in the title bar
+// - scalesize:    [width, heigth] scaled size of the dialog
+// - minsize:      [width, height] minimum size of the dialog, 
+//                 when the whole viewport is smaller, the viewport size is used
+// - contentstyle: object to add/override some styles to/of the content element
+// - onClose:      callback function() that is called when the dialog is closed by the user
+// - buttons:      list of strings like ["Okay", "Cancel"], each button is connected to
+//                 an eventhandler that is named on<Button>, if it is not available,
+//                 onClose is used instead, if this is not given, there is no button bar
+//                 at the bottom.
+// those properties are carried over to the returned object
+// and the following fields are contained in the returned object:
+// - content:      a DOM element, that represents the content of the dialog
+// - dom:          a DOM element, that represents the whole dialog
+// - button_doms:  dictionary of DOM elements, that represents the buttons in the button bar
+// - and others, mainly the titlebar components
+module.createModal = function(description)
+{
+	let control = Object.assign({}, description);
+	// handle default fields
+	if (! control.hasOwnProperty("onClose")) control.onClose = function() { };
+	
+	// create dialog	
+	let dialog = tgui.createElement({
+		"type": "div",
+		"className": "tgui tgui-modal",
+		"style": {"background": "#eee", "overflow": "hidden", "display": "block", "zIndex": 100},
+	});
+	control.dom = dialog;
+	// TODO remove:
+	let tmp_size = {"width_min": description.minsize[0], "height_min": description.minsize[1],
+					"width_scale": description.scalesize[0], "height_scale": description.scalesize[1]};
+	dialog["tgui_modal_size"] = tmp_size; // used to arrange the dialog properly
+
+	control.handleClose = handleDialogCloseWith(control.onClose);
+	control.titlebar = createTitleBar(dialog, control.title, control.handleClose);
+
+	
+	/*dialog.addEventListener("keydown", function(event)
+	{
+		if (event.key == "Escape")
+		{
+			return control.handleClose(event);
+		}
+	});*/
+	dialog.onKeyDown = function(event)
+	{
+		if (event.key == "Escape")
+		{
+			return control.handleClose(event);
+		}
+	};
+	// create the content div
+	let contentHeight = control.hasOwnProperty("buttons") ? "calc(100% - 63px)" : "calc(100% - 24px)";
+	let contentstyle = {"height": contentHeight};
+	if(control.hasOwnProperty("contentstyle")) Object.assign(contentstyle, control.contentstyle);
+	control.content = tgui.createElement({
+		"type":       "div", 
+		"parent":     dialog,
+		"classname":  "tgui tgui-modal-content",
+		"style":      contentstyle,
+	});
+	
+	
+	
+	if(control.hasOwnProperty("buttons"))
+	{
+		control.div_buttons = tgui.createElement({
+			"parent": control.dom,
+			"type": "div",
+			"classname": "tgui tgui-modal-buttonbar",
+		});
+		control.button_doms = {};
+			
+		for(let i = 0; i < control.buttons.length; ++i)
+		{
+			let buttonName = control.buttons[i];
+			let event_handler = control.onClose;
+			if(control.hasOwnProperty("on"+buttonName))
+				event_handler = control["on"+buttonName];
+				
+			control.button_doms[buttonName] = tgui.createElement({
+				"parent":     control.div_buttons,
+				"type":       "button",
+				"style":      {"width": "100px", "height": "100%", "margin-right": "10px"},
+				"text":       buttonName,
+				"classname":  "tgui-dialog-button",
+				"click":      handleDialogCloseWith(event_handler),
+			});
+		}
+	}
+	
+
+	return control;
+	
+	// --- Local function definitions ---
+
+	// creates an event handler for a dialog, whenever it is going to be closed.
+	// - onClose:  a cleanup callback, use null for no cleanup
+	function handleDialogCloseWith(onClose)
+	{
+		return function(event)
+		{
+			let ret = undefined;
+			if(onClose!=null) ret = onClose();
+			if(event)
+			{
+				event.preventDefault();
+				event.stopPropagation();
+			}
+			if(ret) return false;
+			tgui.stopModal();
+			return false;
+		}
+	}
+
+
+	function createTitleBar(dlg, title, handleClose)
+	{
+		let titlebar = tgui.createElement({
+				"parent": dlg,
+				"type": "div",
+				"style": {"position": "absolute", "width": "100%", "left": "0", "height": "24px", "top": "0"},
+				"classname": "tgui-modal-titlebar",
+			});
+
+		let titlebar_title = tgui.createElement({ // TODO similar to panel titlebars
+				"parent": titlebar,
+				"type": "span",
+				"text": title,
+				"classname": "tgui-modal-titlebar-title",
+				"style": {"height": "20px", "line-height": "20px"},
+			});
+
+		let close = tgui.createButton({
+				"parent": titlebar,
+				"click": function ()
+						{
+							return handleClose(null);
+						},
+				"width": 20,
+				"height": 20,
+				"draw": function(canvas)
+						{
+							let ctx = canvas.getContext("2d");
+							ctx.lineWidth = 2;
+							ctx.strokeStyle = "#000";
+							ctx.beginPath();
+							ctx.moveTo( 4,  4);
+							ctx.lineTo(14, 14);
+							ctx.stroke();
+							ctx.beginPath();
+							ctx.moveTo( 4, 14);
+							ctx.lineTo(14,  4);
+							ctx.stroke();
+						},
+				"classname": "tgui-panel-dockbutton",
+				"tooltip-right": "Close",
+			});
+
+		return titlebar;
+	}
+}
+
+
 // Show a (newly created) element as a modal dialog. Modal dialogs can
 // be stacked. The element should not have been added to a parent yet.
 // It has "fixed" positioning and hence is expected to have been styled
 // with top, left, width, and height.
 module.startModal = function(element)
 {
+	// TODO: disable elements behind the separator.
+	//       - if some elements are focused, it might lead to issues
 	if (modal.length == 0)
 	{
 		// activate the separator
@@ -1211,6 +1387,7 @@ module.startModal = function(element)
 	}
 
 	// add the new modal dialog
+	// TODO: remove following 3 lines
 	element.style.display = "block";
 	element.style.zIndex = 100;
 	element.className += " tgui tgui-modal";
