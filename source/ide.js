@@ -899,7 +899,7 @@ let cmd_export = function()
 			"style": {"position": "absolute", "width": "80%", "left": "10%", "height": "40px", "line-height": "35px", "top": "140px", "background": "#fff", "color": "#44c", "font-decoration": "underline", "padding": "2px 10px", "vertical-align": "middle", "border": "1px solid #000", "display": "none"},
 		});
 
-	tgui.startModal(dlg.dom);
+	tgui.startModal(dlg);
 
 	// escape the TScript source code; prepare it to reside inside a single-quoted string
 	source = source.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/'/g, "\\'");
@@ -1474,7 +1474,9 @@ function configDlg()
 							"text":"Press the hotkey to assign, or press escape to remove the current hotkey",
 							"style":{"position": "absolute", "left": "15px", "top": "106px", "right": "15px"}
 						});
-						dlg.dom.onKeyDown = function(event)
+						
+						dlg.onKeyDownOverride = true; // Do not handle [escape]
+						dlg.onKeyDown = function(event)
 								{
 									event.preventDefault();
 									event.stopPropagation();
@@ -1514,7 +1516,7 @@ function configDlg()
 									return false;
 								};
 								
-						tgui.startModal(dlg.dom);
+						tgui.startModal(dlg);
 					};
 		}
 		dlg_buttons.push(tgui.createButton(description));
@@ -1532,7 +1534,7 @@ function configDlg()
 			});
 	if (TScript.options.checkstyle) checkbox.checked = true;
 
-	tgui.startModal(dlg.dom);
+	tgui.startModal(dlg);
 }
 
 function fileDlg(title, filename, allowNewFilename, onOkay)
@@ -1677,8 +1679,8 @@ function fileDlg(title, filename, allowNewFilename, onOkay)
 		return false;
 	});
 
-	let oldKeyDown = dlg.dom.onKeyDown;
-	dlg.dom.addEventListener("keydown", function(event)
+	let oldKeyDown = dlg.onKeyDown;
+	dlg.onKeyDown = function(event)
 			{
 				if (event.key === "Enter")
 				{
@@ -1695,9 +1697,9 @@ function fileDlg(title, filename, allowNewFilename, onOkay)
 					}
 					return false;
 				}
-			});
+			};
 
-	tgui.startModal(dlg.dom);
+	tgui.startModal(dlg);
 	(allowNewFilename ? name : list).focus();
 	return dlg;
 
@@ -2045,7 +2047,7 @@ module.create = function(container, options)
 					});
 				}
 
-				tgui.startModal(dlg.dom);
+				tgui.startModal(dlg);
 				dlg.button_doms["Okay"].focus();
 			});
 	}

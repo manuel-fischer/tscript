@@ -1157,6 +1157,9 @@ let separator = module.createElement({
 					return false;   // important: consume clicks
 				},
 		});
+
+// See `createModal` for a detailed description of the objects
+// that are stored here
 let modal = [];
 
 function roundToPhysicalPixel(virtual_px)
@@ -1171,24 +1174,22 @@ function centerModalDialog(dlg)
 {
 	let dlg_width, dlg_height;
 	let scr_width = window.innerWidth, scr_height = window.innerHeight;
-	if(dlg.hasOwnProperty("tgui_modal_size"))
+	if(dlg.hasOwnProperty("minsize") && dlg.hasOwnProperty("scalesize"))
 	{
-		let size = dlg["tgui_modal_size"];
+		dlg_width = roundToPhysicalPixel(Math.min(Math.max(dlg.minsize[0], dlg.scalesize[0]*scr_width), scr_width));
+		dlg_height = roundToPhysicalPixel(Math.min(Math.max(dlg.minsize[1], dlg.scalesize[1]*scr_height), scr_height));
 		
-		dlg_width = roundToPhysicalPixel(Math.min(Math.max(size["width_min"], size["width_scale"]*scr_width), scr_width));
-		dlg_height = roundToPhysicalPixel(Math.min(Math.max(size["height_min"], size["height_scale"]*scr_height), scr_height));
-		
-		dlg.style["width"] = dlg_width+"px";
-		dlg.style["height"] = dlg_height+"px";
+		dlg.dom.style["width"] = dlg_width+"px";
+		dlg.dom.style["height"] = dlg_height+"px";
 	}
 	else
 	{
-		let rect = dlg.getBoundingClientRect();
+		let rect = dlg.dom.getBoundingClientRect();
 		dlg_width = rect.width;
 		dlg_height = rect.height;
 	}
-	dlg.style["left"] = roundToPhysicalPixel((scr_width-dlg_width)/2)+"px";
-	dlg.style["top"]  = roundToPhysicalPixel((scr_height-dlg_height)/2)+"px";
+	dlg.dom.style["left"] = roundToPhysicalPixel((scr_width-dlg_width)/2)+"px";
+	dlg.dom.style["top"]  = roundToPhysicalPixel((scr_height-dlg_height)/2)+"px";
 }
 
 // Center all dialogs whenever the window changed
@@ -1218,6 +1219,8 @@ window.addEventListener("resize", centerAllModalDialogs);
 // - dom:          a DOM element, that represents the whole dialog
 // - button_doms:  dictionary of DOM elements, that represents the buttons in the button bar
 // - and others, mainly the titlebar components
+// TODO: Support undecorated elements via a boolean property `decorated`, in this case
+//       control.dom might be the same as control.content.
 module.createModal = function(description)
 {
 	let control = Object.assign({}, description);
@@ -1231,29 +1234,10 @@ module.createModal = function(description)
 		"style": {"background": "#eee", "overflow": "hidden", "display": "block", "zIndex": 100},
 	});
 	control.dom = dialog;
-	// TODO remove:
-	let tmp_size = {"width_min": description.minsize[0], "height_min": description.minsize[1],
-					"width_scale": description.scalesize[0], "height_scale": description.scalesize[1]};
-	dialog["tgui_modal_size"] = tmp_size; // used to arrange the dialog properly
 
 	control.handleClose = handleDialogCloseWith(control.onClose);
 	control.titlebar = createTitleBar(dialog, control.title, control.handleClose);
 
-	
-	/*dialog.addEventListener("keydown", function(event)
-	{
-		if (event.key == "Escape")
-		{
-			return control.handleClose(event);
-		}
-	});*/
-	dialog.onKeyDown = function(event)
-	{
-		if (event.key == "Escape")
-		{
-			return control.handleClose(event);
-		}
-	};
 	// create the content div
 	let contentHeight = control.hasOwnProperty("buttons") ? "calc(100% - 63px)" : "calc(100% - 24px)";
 	let contentstyle = {"height": contentHeight};
@@ -1336,6 +1320,37 @@ module.createModal = function(description)
 				"style": {"height": "20px", "line-height": "20px"},
 			});
 
+		if(0)
+		{
+			// TODO Show help to the current dialog
+			let close = tgui.createButton({
+					"parent": titlebar,
+					"click": function ()
+							{
+								// TODO Open help/documentation here
+							},
+					"width": 20,
+					"height": 20,
+					"draw": function(canvas)
+							{
+								let ctx = canvas.getContext("2d");
+								ctx.lineWidth = 2;
+								ctx.strokeStyle = "#000";
+								ctx.beginPath();
+								ctx.arc(9, 6, 4, 1*Math.PI, 2.5*Math.PI, false);
+								
+								ctx.lineTo(9, 13);
+								ctx.stroke();
+								ctx.beginPath();
+								ctx.moveTo( 9, 15);
+								ctx.lineTo(9,  17);
+								ctx.stroke();
+							},
+					"classname": "tgui-panel-dockbutton",
+					"tooltip-right": "Help",
+				});
+		}
+
 		let close = tgui.createButton({
 				"parent": titlebar,
 				"click": function ()
@@ -1367,6 +1382,11 @@ module.createModal = function(description)
 }
 
 
+// Show a (newly created) modal dialog, that was created by createModal.
+// Modal dialogs can be stacked. The dialog should not have been shown yet.
+// The window appears at the center of the screen, aligned to physical
+// screen pixels.
+// THE FOLLOWING BEHAVIOR IS DEPRECATED/NOT SUPPORTED ANYMORE:
 // Show a (newly created) element as a modal dialog. Modal dialogs can
 // be stacked. The element should not have been added to a parent yet.
 // It has "fixed" positioning and hence is expected to have been styled
@@ -1383,15 +1403,15 @@ module.startModal = function(element)
 	else
 	{
 		// move the old topmost dialog below the separator
-		modal[modal.length - 1].style.zIndex = 0;
+		modal[modal.length - 1].dom.style.zIndex = 0;
 	}
 
 	// add the new modal dialog
 	// TODO: remove following 3 lines
-	element.style.display = "block";
-	element.style.zIndex = 100;
-	element.className += " tgui tgui-modal";
-	document.body.appendChild(element);
+	element.dom.style.display = "block";
+	element.dom.style.zIndex = 100;
+	element.dom.className += " tgui tgui-modal";
+	document.body.appendChild(element.dom);
 	centerModalDialog(element);
 	modal.push(element);
 }
@@ -1403,11 +1423,11 @@ module.stopModal = function()
 
 	// remove the topmost modal element
 	let element = modal.pop();
-	document.body.removeChild(element);
+	document.body.removeChild(element.dom);
 
 	// remove the separator after the last modal dialog was closed
 	if (modal.length == 0) document.body.removeChild(separator);
-	else modal[modal.length - 1].style.zIndex = 100;
+	else modal[modal.length - 1].dom.style.zIndex = 100;
 }
 
 // check whether an element is currently visible to the user
@@ -1430,6 +1450,11 @@ document.addEventListener("keydown", function(event)
 	{
 		// redirect key events to the topmost dialog
 		let dlg = modal[modal.length - 1];
+		if (!dlg.onKeyDownOverride && event.key == "Escape")
+		{
+			return dlg.handleClose(event);
+		}
+		
 		if (dlg.hasOwnProperty("onKeyDown"))
 		{
 			dlg.onKeyDown(event);
