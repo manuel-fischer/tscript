@@ -9119,14 +9119,21 @@ module.createModal = function(description)
 		return function(event)
 		{
 			let ret = undefined;
+			// by closing the current dialog before calling onClose,
+			// onClose itself is able to open additional dialogs in place
+			// of the current one
+			// if the onClose returns true, the dialog is reopened, note
+			// that the content keeps being the same, stopModal and addModal
+			// do not invalidate the control object, thus the control object
+			// can simply be reused
+			tgui.stopModal(); // removes current dialog
 			if(onClose!=null) ret = onClose();
 			if(event)
 			{
 				event.preventDefault();
 				event.stopPropagation();
 			}
-			if(ret) return false;
-			tgui.stopModal();
+			if(ret) tgui.startModal(control); // reopen current dialog
 			return false;
 		}
 	}
