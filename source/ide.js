@@ -965,33 +965,46 @@ let cmd_toggle_breakpoint = function()
 	}
 }
 
-let cmd_new = function()
+// onConfirmed might be called after confirmFileDiscard has returned, that happens, when the confirm
+// dialog has opened
+function confirmFileDiscard(title, onConfirmed)
 {
 	if (module.document.dirty)
 	{
-		if (! confirm("The document may have unsaved changes.\nDo you want to discard the code?")) return;
+		tgui.msgBox({
+			prompt:         "The document may have unsaved changes.\nDo you want to discard the code?",
+			title:          title,
+			buttons:        ["Yes", "No"],
+			default_button: "Yes",
+			onYes:          onConfirmed,
+		});
 	}
+	else
+	{
+		onConfirmed();
+	}
+}
 
-	clear();
+let cmd_new = function()
+{	
+	confirmFileDiscard("New document", () => {
+		clear();
 
-	module.editor_title.innerHTML = "Editor";
-	module.document.filename = "";
-	module.sourcecode.setValue("");
-	module.sourcecode.getDoc().clearHistory();
-	module.document.dirty = false;
+		module.editor_title.innerHTML = "Editor";
+		module.document.filename = "";
+		module.sourcecode.setValue("");
+		module.sourcecode.getDoc().clearHistory();
+		module.document.dirty = false;
 
-	updateControls();
-	module.sourcecode.focus();
+		updateControls();
+		module.sourcecode.focus();
+	});
 }
 
 let cmd_load = function()
 {
-	if (module.document.dirty)
-	{
-		if (! confirm("The document has unsaved changes.\nDo you want to discard the code?")) return;
-	}
-
-	let dlg = fileDlg("Load file", module.document.filename, false, function(filename)
+	confirmFileDiscard("Open document", () => {
+		fileDlg("Load file", module.document.filename, false, function(filename)
 			{
 				clear();
 
@@ -1006,6 +1019,7 @@ let cmd_load = function()
 				updateControls();
 				module.sourcecode.focus();
 			});
+	});
 }
 
 let cmd_save = function()
@@ -1137,7 +1151,7 @@ function draw_icon_pencil_overlay(ctx)
 }
 
 
-
+// TODO: disable toolbar focus?
 let buttons = [
 		{
 			"click": cmd_new,
@@ -1417,11 +1431,12 @@ function saveConfig()
 function configDlg()
 {
 	let dlg = tgui.createModal({
-		"title":      "Configuration", 
-		"scalesize":  [0.50, 0.50], 
-		"minsize":    [370, 270],
-		"onClose":    saveConfig,
-		"buttons":    ["Close"],
+		"title":          "Configuration", 
+		"scalesize":      [0.50, 0.50], 
+		"minsize":        [370, 270],
+		"onClose":        saveConfig,
+		"buttons":        ["Done"],
+		"default_button": "Done",
 	});
 	let div_hotkey = tgui.createElement({parent: dlg.content, type: "div"});
 	let h3_hotkey = tgui.createElement({parent: div_hotkey, type: "h3", text: "Configure Hotkeys"});
@@ -1565,12 +1580,13 @@ function fileDlg(title, filename, allowNewFilename, onOkay)
 	};
 	
 	let dlg = tgui.createModal({
-		"title":        title, 
-		"scalesize":    [0.50, 0.70], 
-		"minsize":      [440, 260],
-		"onOkay":       doFileConfirmation,
-		"buttons":      ["Okay", "Cancel"],
-		"contentstyle": {"display": "flex", "flex-direction": "column", "justify-content": "space-between"}
+		"title":          title, 
+		"scalesize":      [0.50, 0.70], 
+		"minsize":        [440, 260],
+		"onOkay":         doFileConfirmation,
+		"buttons":        ["Okay", "Cancel"],
+		"default_button": "Okay",
+		"contentstyle":   {"display": "flex", "flex-direction": "column", "justify-content": "space-between"}
 	});
 
 	let toolbar = tgui.createElement({
@@ -1589,7 +1605,7 @@ function fileDlg(title, filename, allowNewFilename, onOkay)
 				"style": {"width": "100px", "height": "100%", "margin-right": "10px"},
 				"text": "Delete file",
 				"click": () => deleteFile(name.value),
-				"classname": "tgui-dialog-button"
+				"classname": "tgui-modal-button"
 			});
 
 		let importBtn = tgui.createElement({
@@ -1598,7 +1614,7 @@ function fileDlg(title, filename, allowNewFilename, onOkay)
 				"style": {"width": "100px", "height": "100%", "margin-right": "10px"},
 				"text": "Import",
 				"click": () => importFile(),
-				"classname": "tgui-dialog-button"
+				"classname": "tgui-modal-button"
 			});
 
 		let exportBtn = tgui.createElement({
@@ -1607,7 +1623,7 @@ function fileDlg(title, filename, allowNewFilename, onOkay)
 				"style": {"width": "100px", "height": "100%", "margin-right": "10px"},
 				"text": "Export",
 				"click": () => exportFile(name.value),
-				"classname": "tgui-dialog-button"
+				"classname": "tgui-modal-button"
 			});
 
 		// allow multiple selection: export selected
@@ -1708,12 +1724,17 @@ function fileDlg(title, filename, allowNewFilename, onOkay)
 		let index = files.indexOf(filename);
 		if (index >= 0)
 		{
-			if (confirm("Delete file \"" + filename + "\"\nAre you sure?"))
-			{
-				localStorage.removeItem("tscript.code." + filename);
-				files.splice(index, 1);
-				list.remove(index);
-			}
+			tgui.msgBox({
+				title:          "Delete file",
+				prompt:         "Delete file \"" + filename + "\"\nAre you sure?",
+				buttons:        ["Yes", "No"],
+				default_button: "Yes",
+				onYes: () => {
+					localStorage.removeItem("tscript.code." + filename);
+					files.splice(index, 1);
+					list.remove(index);
+				},
+			});
 		}
 	}
 
@@ -2024,11 +2045,12 @@ module.create = function(container, options)
 				}
 
 				let dlg = tgui.createModal({
-					"title":      "Open documentation", 
-					"scalesize":  [0.20, 0.15], 
-					"minsize":    [300, 150],
-					"onOkay":     () => showdoc(href),
-					"buttons":    ["Okay", "Cancel"],
+					"title":          "Open documentation", 
+					"scalesize":      [0.20, 0.15], 
+					"minsize":        [300, 150],
+					"onOkay":         () => showdoc(href),
+					"buttons":        ["Okay", "Cancel"],
+					"default_button": "Okay"
 				});
 				tgui.createElement({
 					"parent": dlg.content,
@@ -2048,7 +2070,6 @@ module.create = function(container, options)
 				}
 
 				tgui.startModal(dlg);
-				dlg.button_doms["Okay"].focus();
 			});
 	}
 

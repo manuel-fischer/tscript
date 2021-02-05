@@ -539,41 +539,9 @@ span.CodeMirror-selectedtext { background: none; }
 }
 
 
-
-.tgui-dialog-button
-{
-	cursor: pointer;
-	
-	background: #eee;
-	border-width: 1px;
-	border-color: #000;
-	box-shadow: 0px 1px 3px rgba(0,0,0,0.2);
-	
-	border-radius: 2px;
-}
-.tgui-dialog-button:focus
-{
-	background: #eee;
-	border-width: 2px;
-}
-
-.tgui-dialog-button:hover
-{
-	background: #fff;
-	border-width: 2px;
-}
-
-.tgui-dialog-button:active
-{
-	background: #bbb;
-	border-width: 2px;
-	box-shadow: inset 0px 0px 3px rgba(0,0,0,0.4);
-}
-
 /* used in file dialog */
 .tgui-status-box
 {
-	background: #eee;
 	vertical-align: middle;
 	padding: 4px;
 }
@@ -664,7 +632,7 @@ span.CodeMirror-selectedtext { background: none; }
 {
 	position: absolute;	
 	box-sizing: border-box;
-	background: #fff;
+	/*background: #fff;*/
 	color: #000;
 	font-family: sans-serif;
 	font-size: 10pt;
@@ -700,6 +668,7 @@ span.CodeMirror-selectedtext { background: none; }
 
 .tgui-modal-content
 {
+	background: #eee;
 	position: absolute;
 	overflow: auto;
 	padding: 0px 10px;
@@ -724,6 +693,72 @@ span.CodeMirror-selectedtext { background: none; }
 }
 
 
+.tgui-modal-button
+{
+	cursor: pointer;
+	
+	background: #eee;
+	border-width: 1px;
+	border-color: #000;
+	box-shadow: 0px 1px 3px #00000033;
+	
+	border-radius: 2px;
+	color: #000;
+}
+.tgui-modal-button:focus
+{
+	background: #eee;
+	border-width: 2px;
+}
+
+.tgui-modal-button:hover
+{
+	background: #fff;
+	border-width: 2px;
+}
+
+.tgui-modal-button:active
+{
+	background: #bbb;
+	border-width: 2px;
+	box-shadow: inset 0px 0px 3px #00000066;
+	color: #000;
+}
+
+.tgui-modal-default-button
+{
+	cursor: pointer;
+	
+	font-weight: bold;
+	
+	background: #16f;
+	border-width: 1px;
+	border-color: #04d;
+	box-shadow: 0px 1px 3px #00000033;
+	
+	border-radius: 2px;
+	color: #fff;
+}
+.tgui-modal-default-button:focus
+{	
+	background: #16f;
+	border-width: 2px;
+	border-color: #027;
+}
+
+.tgui-modal-default-button:hover
+{
+	background: #27f;
+	border-width: 2px;
+}
+
+.tgui-modal-default-button:active
+{
+	background: #139;
+	border-width: 2px;
+	border-color: #000;
+	box-shadow: inset 0px 0px 3px #00000066;
+}
 
 .tgui-panel-container {
 	overflow: hidden;
@@ -753,7 +788,7 @@ span.CodeMirror-selectedtext { background: none; }
 	font-family: sans-serif;
 	vertical-align: middle;
 	/*old style on browsers like firefox: font-family: serif; -- "sans" does not work and leads to "serif"*/
-	font-weight: 600;
+	font-weight: bold;
 	font-size: 10pt;
 
 	-webkit-touch-callout: none;

@@ -7898,6 +7898,12 @@ function createControl(type, description, classname)
 		}
 	}
 
+	// tabindex property to disable tab focus (tabindex: -1)
+	if (description.hasOwnProperty("tabindex"))
+	{
+		element.tabIndex = description.tabindex;
+	}
+
 	// add to a parent
 	if (description.parent) description.parent.appendChild(element);
 
@@ -7986,7 +7992,7 @@ module.createCanvasIcon = function(description)
 	let canvas = module.createElement({
 		"type": "canvas", 
 		"parent": description.parent,
-		"classname": description.hasOwnProperty("classname")?description["classname"]:"tgui", 
+		"classname": description.hasOwnProperty("classname")?description["classname"]:"tgui",
 		"style": style,
 	});
 	canvas.width = description.width;
@@ -8975,24 +8981,36 @@ function centerAllModalDialogs()
 // TODO: merge this with arrangePanels, that is also installed as a "resize"-callback
 window.addEventListener("resize", centerAllModalDialogs);
 
+function nodeListContains(nodeList, element)
+{
+	for (let i = 0; i < nodeList.length; i++) {
+		let item = nodeList[i];
+		if (item === element) return true;
+	}
+	return false;
+}
+
 // Create a modal dialog. Similar to createPanel
 // The description object has the following fields:
-// - title:        text in the title bar
-// - scalesize:    [width, heigth] scaled size of the dialog
-// - minsize:      [width, height] minimum size of the dialog, 
-//                 when the whole viewport is smaller, the viewport size is used
-// - contentstyle: object to add/override some styles to/of the content element
-// - onClose:      callback function() that is called when the dialog is closed by the user
-// - buttons:      list of strings like ["Okay", "Cancel"], each button is connected to
-//                 an eventhandler that is named on<Button>, if it is not available,
-//                 onClose is used instead, if this is not given, there is no button bar
-//                 at the bottom.
+// - title:             text in the title bar
+// - scalesize:         [width, heigth] scaled size of the dialog
+// - minsize:           [width, height] minimum size of the dialog, 
+//                      when the whole viewport is smaller, the viewport size is used
+// - contentstyle:      object to add/override some styles to/of the content element
+// - onClose:           callback function() that is called when the dialog is closed by the user
+// - buttons:           list of strings like ["Okay", "Cancel"], each button is connected to
+//                      an eventhandler that is named on<Button>, if it is not available,
+//                      onClose is used instead, if this is not given, there is no button bar
+//                      at the bottom.
+// - default_button     the name of the button in buttons, that is defaulted; it gets highlighted in blue
+//
 // those properties are carried over to the returned object
 // and the following fields are contained in the returned object:
-// - content:      a DOM element, that represents the content of the dialog
-// - dom:          a DOM element, that represents the whole dialog
-// - button_doms:  dictionary of DOM elements, that represents the buttons in the button bar
+// - content:           a DOM element, that represents the content of the dialog
+// - dom:               a DOM element, that represents the whole dialog
+// - button_doms:       dictionary of DOM elements, that represents the buttons in the button bar
 // - and others, mainly the titlebar components
+//
 // TODO: Support undecorated elements via a boolean property `decorated`, in this case
 //       control.dom might be the same as control.content.
 module.createModal = function(description)
@@ -9008,6 +9026,40 @@ module.createModal = function(description)
 		"style": {"background": "#eee", "overflow": "hidden", "display": "block", "zIndex": 100},
 	});
 	control.dom = dialog;
+	
+	dialog.addEventListener("keydown", function(event)
+	{
+		if(event.keyCode === 9) // TAB characterSet
+		{			
+			//let focus_query = 'button, [href], input, select, textarea, [tabIndex]:not([tabIndex="-1"])';
+			let focus_query = 'button, [href], input, select, textarea';
+			var focusable = Array(...control.content.querySelectorAll(focus_query));
+			if(control.hasOwnProperty("div_buttons"))
+			{
+				focusable.push(...control.div_buttons.querySelectorAll(focus_query));
+			}			
+			
+			if(focusable.length === 0)
+			{
+				document.activeElement.blur();
+			}
+			else
+			{
+				let focusIndex = focusable.indexOf(document.activeElement);
+				let n = focusable.length;
+				if(focusIndex == -1 || (!event.shiftKey && focusIndex == n-1))
+				{
+					focusable[0].focus();
+					event.preventDefault();
+				}
+				else if(event.shiftKey && focusIndex === 0)
+				{
+					focusable[n-1].focus();
+					event.preventDefault();
+				}
+			}
+		}
+	});
 
 	control.handleClose = handleDialogCloseWith(control.onClose);
 	control.titlebar = createTitleBar(dialog, control.title, control.handleClose);
@@ -9034,6 +9086,9 @@ module.createModal = function(description)
 		});
 		control.button_doms = {};
 			
+		let default_button = null;
+		if(control.hasOwnProperty("default_button")) default_button = control.default_button;
+			
 		for(let i = 0; i < control.buttons.length; ++i)
 		{
 			let buttonName = control.buttons[i];
@@ -9046,7 +9101,7 @@ module.createModal = function(description)
 				"type":       "button",
 				"style":      {"width": "100px", "height": "100%", "margin-right": "10px"},
 				"text":       buttonName,
-				"classname":  "tgui-dialog-button",
+				"classname":  (default_button == buttonName ? "tgui-modal-default-button" : "tgui-modal-button"),
 				"click":      handleDialogCloseWith(event_handler),
 			});
 		}
@@ -9097,7 +9152,7 @@ module.createModal = function(description)
 		if(0)
 		{
 			// TODO Show help to the current dialog
-			let close = tgui.createButton({
+			let help = tgui.createButton({
 					"parent": titlebar,
 					"click": function ()
 							{
@@ -9122,6 +9177,7 @@ module.createModal = function(description)
 							},
 					"classname": "tgui-panel-dockbutton",
 					"tooltip-right": "Help",
+					"tabindex": "-1",
 				});
 		}
 
@@ -9149,11 +9205,35 @@ module.createModal = function(description)
 						},
 				"classname": "tgui-panel-dockbutton",
 				"tooltip-right": "Close",
+				"tabindex": "-1",
 			});
 
 		return titlebar;
 	}
 }
+
+// Properties of description: prompt, [buttons], [default_button], title, on<ButtonName>...
+module.msgBox = function(description)
+{
+	let default_description = {"buttons": ["Okay"], "default_button": null}
+	description = Object.assign(default_description, description);
+	
+	let dlg = tgui.createModal(Object.assign({
+		"scalesize":      [0.20, 0.15], 
+		"minsize":        [300, 150],
+	}, description));
+	tgui.createElement({
+		"parent": dlg.content,
+		"type": "div",
+		"style": {
+			"margin-top": "10px",
+			"white-space": "pre-wrap", // do linebreaks
+		},
+		"text": description.prompt,
+	});
+
+	tgui.startModal(dlg);
+};
 
 
 // Show a (newly created) modal dialog, that was created by createModal.
@@ -9180,6 +9260,11 @@ module.startModal = function(element)
 		modal[modal.length - 1].dom.style.zIndex = 0;
 	}
 
+	// save previous active element to be restored later
+	element.prevActiveElement = document.activeElement;
+	document.activeElement.blur();
+	
+	
 	// add the new modal dialog
 	// TODO: remove following 3 lines
 	element.dom.style.display = "block";
@@ -9188,6 +9273,11 @@ module.startModal = function(element)
 	document.body.appendChild(element.dom);
 	centerModalDialog(element);
 	modal.push(element);
+		
+	if(element.hasOwnProperty("default_button"))
+		element.button_doms[element.default_button].focus();
+	else
+		element.content.focus();
 }
 
 // Discard the topmost modal dialog.
@@ -9198,6 +9288,9 @@ module.stopModal = function()
 	// remove the topmost modal element
 	let element = modal.pop();
 	document.body.removeChild(element.dom);
+	
+	// restore previous active element
+	if(element.prevActiveElement !== null) element.prevActiveElement.focus();
 
 	// remove the separator after the last modal dialog was closed
 	if (modal.length == 0) document.body.removeChild(separator);
@@ -19441,33 +19534,46 @@ let cmd_toggle_breakpoint = function()
 	}
 }
 
-let cmd_new = function()
+// onConfirmed might be called after confirmFileDiscard has returned, that happens, when the confirm
+// dialog has opened
+function confirmFileDiscard(title, onConfirmed)
 {
 	if (module.document.dirty)
 	{
-		if (! confirm("The document may have unsaved changes.\nDo you want to discard the code?")) return;
+		tgui.msgBox({
+			prompt:         "The document may have unsaved changes.\nDo you want to discard the code?",
+			title:          title,
+			buttons:        ["Yes", "No"],
+			default_button: "Yes",
+			onYes:          onConfirmed,
+		});
 	}
+	else
+	{
+		onConfirmed();
+	}
+}
 
-	clear();
+let cmd_new = function()
+{	
+	confirmFileDiscard("New document", () => {
+		clear();
 
-	module.editor_title.innerHTML = "Editor";
-	module.document.filename = "";
-	module.sourcecode.setValue("");
-	module.sourcecode.getDoc().clearHistory();
-	module.document.dirty = false;
+		module.editor_title.innerHTML = "Editor";
+		module.document.filename = "";
+		module.sourcecode.setValue("");
+		module.sourcecode.getDoc().clearHistory();
+		module.document.dirty = false;
 
-	updateControls();
-	module.sourcecode.focus();
+		updateControls();
+		module.sourcecode.focus();
+	});
 }
 
 let cmd_load = function()
 {
-	if (module.document.dirty)
-	{
-		if (! confirm("The document has unsaved changes.\nDo you want to discard the code?")) return;
-	}
-
-	let dlg = fileDlg("Load file", module.document.filename, false, function(filename)
+	confirmFileDiscard("Open document", () => {
+		fileDlg("Load file", module.document.filename, false, function(filename)
 			{
 				clear();
 
@@ -19482,6 +19588,7 @@ let cmd_load = function()
 				updateControls();
 				module.sourcecode.focus();
 			});
+	});
 }
 
 let cmd_save = function()
@@ -19613,7 +19720,7 @@ function draw_icon_pencil_overlay(ctx)
 }
 
 
-
+// TODO: disable toolbar focus?
 let buttons = [
 		{
 			"click": cmd_new,
@@ -19893,11 +20000,12 @@ function saveConfig()
 function configDlg()
 {
 	let dlg = tgui.createModal({
-		"title":      "Configuration", 
-		"scalesize":  [0.50, 0.50], 
-		"minsize":    [370, 270],
-		"onClose":    saveConfig,
-		"buttons":    ["Close"],
+		"title":          "Configuration", 
+		"scalesize":      [0.50, 0.50], 
+		"minsize":        [370, 270],
+		"onClose":        saveConfig,
+		"buttons":        ["Done"],
+		"default_button": "Done",
 	});
 	let div_hotkey = tgui.createElement({parent: dlg.content, type: "div"});
 	let h3_hotkey = tgui.createElement({parent: div_hotkey, type: "h3", text: "Configure Hotkeys"});
@@ -20041,12 +20149,13 @@ function fileDlg(title, filename, allowNewFilename, onOkay)
 	};
 	
 	let dlg = tgui.createModal({
-		"title":        title, 
-		"scalesize":    [0.50, 0.70], 
-		"minsize":      [440, 260],
-		"onOkay":       doFileConfirmation,
-		"buttons":      ["Okay", "Cancel"],
-		"contentstyle": {"display": "flex", "flex-direction": "column", "justify-content": "space-between"}
+		"title":          title, 
+		"scalesize":      [0.50, 0.70], 
+		"minsize":        [440, 260],
+		"onOkay":         doFileConfirmation,
+		"buttons":        ["Okay", "Cancel"],
+		"default_button": "Okay",
+		"contentstyle":   {"display": "flex", "flex-direction": "column", "justify-content": "space-between"}
 	});
 
 	let toolbar = tgui.createElement({
@@ -20065,7 +20174,7 @@ function fileDlg(title, filename, allowNewFilename, onOkay)
 				"style": {"width": "100px", "height": "100%", "margin-right": "10px"},
 				"text": "Delete file",
 				"click": () => deleteFile(name.value),
-				"classname": "tgui-dialog-button"
+				"classname": "tgui-modal-button"
 			});
 
 		let importBtn = tgui.createElement({
@@ -20074,7 +20183,7 @@ function fileDlg(title, filename, allowNewFilename, onOkay)
 				"style": {"width": "100px", "height": "100%", "margin-right": "10px"},
 				"text": "Import",
 				"click": () => importFile(),
-				"classname": "tgui-dialog-button"
+				"classname": "tgui-modal-button"
 			});
 
 		let exportBtn = tgui.createElement({
@@ -20083,7 +20192,7 @@ function fileDlg(title, filename, allowNewFilename, onOkay)
 				"style": {"width": "100px", "height": "100%", "margin-right": "10px"},
 				"text": "Export",
 				"click": () => exportFile(name.value),
-				"classname": "tgui-dialog-button"
+				"classname": "tgui-modal-button"
 			});
 
 		// allow multiple selection: export selected
@@ -20184,12 +20293,17 @@ function fileDlg(title, filename, allowNewFilename, onOkay)
 		let index = files.indexOf(filename);
 		if (index >= 0)
 		{
-			if (confirm("Delete file \"" + filename + "\"\nAre you sure?"))
-			{
-				localStorage.removeItem("tscript.code." + filename);
-				files.splice(index, 1);
-				list.remove(index);
-			}
+			tgui.msgBox({
+				title:          "Delete file",
+				prompt:         "Delete file \"" + filename + "\"\nAre you sure?",
+				buttons:        ["Yes", "No"],
+				default_button: "Yes",
+				onYes: () => {
+					localStorage.removeItem("tscript.code." + filename);
+					files.splice(index, 1);
+					list.remove(index);
+				},
+			});
 		}
 	}
 
@@ -20500,11 +20614,12 @@ module.create = function(container, options)
 				}
 
 				let dlg = tgui.createModal({
-					"title":      "Open documentation", 
-					"scalesize":  [0.20, 0.15], 
-					"minsize":    [300, 150],
-					"onOkay":     () => showdoc(href),
-					"buttons":    ["Okay", "Cancel"],
+					"title":          "Open documentation", 
+					"scalesize":      [0.20, 0.15], 
+					"minsize":        [300, 150],
+					"onOkay":         () => showdoc(href),
+					"buttons":        ["Okay", "Cancel"],
+					"default_button": "Okay"
 				});
 				tgui.createElement({
 					"parent": dlg.content,
@@ -20524,7 +20639,6 @@ module.create = function(container, options)
 				}
 
 				tgui.startModal(dlg);
-				dlg.button_doms["Okay"].focus();
 			});
 	}
 
